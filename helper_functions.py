@@ -44,8 +44,9 @@ def get_epsg(file):
         print("No EPSG found. Check your data.")
         return
     
-def get_corners(meta):
-    
+def get_extent(file):
+    meta = read_meta(file)
+
     xmin = meta["transform"][2]
     ymax = meta["transform"][5]
     
@@ -95,6 +96,14 @@ def rasterValuesToPoint(xcoords, ycoords, rastername):
         out = out.flatten()
     return out
 
+def min_max_scaler(x):
+    if len(x)>1:
+        return (x-min(x))/(max(x)-min(x))
+    elif len(x) == 1: 
+        return np.array([1])
+    else: 
+        return np.array([])
+    
 def impute(arr, max_fillsize = 1000):
     #fill holes in disparity raster with mean of surroundings
     #after https://stackoverflow.com/questions/41550979/fill-holes-with-majority-of-surrounding-values-python
@@ -128,10 +137,19 @@ def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
         print(result.stderr)
     return f"{img[:-4]}_clip.tif"
 
-def clip_mp(img, ul_lon, ul_lat, xsize, ysize, demname):
+def clip_mp_projwin(img, ul_lon, ul_lat, xsize, ysize):
     #clip mapprojected images (no transformation to image_coords required)
 
     cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -projwin {ul_lon} {ul_lat} {xsize} {ysize} {img} {img[:-4]}_clip.tif"
+    result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
+    if result.stderr != "":
+        print(result.stderr)
+    return f"{img[:-4]}_clip.tif"
+
+def clip_mp_cutline(img, cutline):
+    #clip mapprojected images (no transformation to image_coords required)
+    res = read_transform(img)[0]
+    cmd = f"gdalwarp -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -cutline {cutline} -overwrite -crop_to_cutline -tr {res} {res} {img} {img[:-4]}_clip.tif"
     result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
     if result.stderr != "":
         print(result.stderr)
@@ -167,7 +185,4 @@ def get_scene_id(fn):
 def get_date(scene_id):
     #strip the time from th PS scene id
     return datetime.datetime.strptime(scene_id[0:8], "%Y%m%d")
-
-
-    
 

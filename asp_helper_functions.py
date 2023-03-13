@@ -42,9 +42,9 @@ def mapproject(amespath, img, dem, img_with_rpc = None, ba_prefix = None, ext = 
     #TODO: switch from _single to mapproject although mp single works much better in my case
     
     if img_with_rpc is not None:
-        cmd = f"{amespath}mapproject_single {dem} {img} {img_with_rpc} {img[:-4]}_{ext}.tif -t rpc --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+        cmd = f"{amespath}mapproject_single {dem} {img} {img_with_rpc} {img[:-4]}_{ext}.tif --threads 0 -t rpc --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
     else: 
-        cmd = f"{amespath}mapproject_single {dem} {img} {img[:-4]}_{ext}.tif -t rpc --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+        cmd = f"{amespath}mapproject_single {dem} {img} {img[:-4]}_{ext}.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
  
     if ba_prefix is not None: 
         cmd = f"{cmd} --bundle-adjust-prefix {ba_prefix}"

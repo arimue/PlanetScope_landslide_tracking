@@ -64,7 +64,7 @@ def generate_matchfile(all_files, reference, outname = "matches.csv", checkOverl
     df.to_csv(os.path.join(path, "matches.csv"), index = False)
     return df
 
-def build_remapped_match_file_crossref(matchfile, dt_min = 365):
+def build_remapped_match_file_crossref(matchfile, dt_min = 365, dt_max = 861):
     #match remapped images among each other if they are further than a min time difference apart
     #only matching older ref with younger sec image
     
@@ -108,7 +108,11 @@ def build_remapped_match_file_crossref(matchfile, dt_min = 365):
 
     for index, row in df.iterrows():
         dt = pd.to_datetime(df.date)-row.date
+        
+        #filter by min and max timedifference
         dt = dt[dt > datetime.timedelta(dt_min)]
+        dt = dt[dt < datetime.timedelta(dt_max)]
+
         if len(dt) > 0: 
             matches = df.loc[dt.index]
             new_matches.append({

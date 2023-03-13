@@ -230,28 +230,31 @@ def fit(fit_points, direction, xgrid, ygrid, dgrid, mask, zgrid = None, egrid = 
 
 
 def raw_correlate_and_correct(fn_img1, fn_img2, demname, amespath, ul_lon, ul_lat, xsize = 3200, ysize = 2000, zgrid = None, dem_err_x = "", dem_err_y = "", ext = "", reduce = 1, first_fit_order = 1, overwrite = False, plot = True):    
-    
-    print("Clipping to same extent...")
-    
+        
     #TODO:Improve remapped filenaming
+    
+    ident1 = get_scene_id(fn_img1)
+    ident2 = get_scene_id(fn_img2)
+    prefix = f"{ident1}_{ident2}_clip"
+    ref_prefix = f"{ident1}_clip"
+    path,_ = os.path.split(fn_img1)
+    path = path +"/"
+    stereopath = path + "stereo/"
+    disp_fn = f"{stereopath}{prefix}-F.tif"
+
+    
+    if os.path.isfile(fn_img2[:-4]+"_clip_remap"+ext+".tif") and os.path.isfile(disp_fn[:-6]+"_dx_corrected"+ext+".tif") and os.path.isfile(disp_fn[:-6]+"_dy_corrected"+ext+".tif") and not overwrite:
+        print("Remapped secondary image and corrected disparities exist. Skipping the fit...")
+        return
+    
+    
+    #Clipping
+    print("Clipping to same extent...")
 
     ref_img_fn = clip_raw(fn_img1, ul_lon, ul_lat, xsize, ysize, demname)
     sec_img_fn = clip_raw(fn_img2, ul_lon, ul_lat, xsize, ysize, demname)
     
-    ident1 = get_scene_id(ref_img_fn)
-    ident2 = get_scene_id(sec_img_fn)
-    prefix = f"{ident1}_{ident2}_clip"
-    ref_prefix = f"{ident1}_clip"
-    path,_ = os.path.split(ref_img_fn)
-    path = path +"/"
-    stereopath = path + "stereo/"
-    disp_fn = f"{stereopath}{prefix}-F.tif"
-    
-    
-    if os.path.isfile(sec_img_fn[:-4]+"_remap"+ext+".tif") and os.path.isfile(disp_fn[:-6]+"_dx_corrected"+ext+".tif") and os.path.isfile(disp_fn[:-6]+"_dy_corrected"+ext+".tif") and not overwrite:
-        print("Remapped secondary image and corrected disparities exist. Skipping the fit...")
-        return
-    
+
     #important: check for all zero columns and remove these
     ref_img = read_file(ref_img_fn)
     
@@ -428,11 +431,13 @@ def correlate_remapped_img_pairs(img1_fn, img2_fn, amespath):
     else:
         print("Disparity file exists. Skipping correlation.")
         
-def mp_correlate(fn_img1, fn_img2, demname, amespath, ul_lon, ul_lat, xsize = 3200, ysize = 2000, crop_before_mp = False, cutline = None, plot = False):
+def mp_correlate(fn_img1, fn_img2, demname, amespath, ul_lon = None, ul_lat = None, xsize = 3200, ysize = 2000, crop_before_mp = False, cutline = None, plot = False):
     
     path,_ = os.path.split(fn_img1)
     
     if crop_before_mp:
+        assert ul_lon is not None and ul_lat is not None, "Need to provide the coordinates of the upper left corner of the desired clip!"
+
         print("Clipping to same extent...")
 
         ref_img_fn = clip_raw(fn_img1, ul_lon, ul_lat, xsize, ysize, demname)
@@ -456,9 +461,8 @@ def mp_correlate(fn_img1, fn_img2, demname, amespath, ul_lon, ul_lat, xsize = 32
             os.remove(f"{ref_img_fn[:-4]}_temp.tif")
             
     else: 
-        if cutline is None:
-            print("Need to provide a cutline if clipping takes place after mp. Exiting...")
-            return
+        assert cutline is not None, "Need to provide a cutline if clipping takes place after mp!"
+        
         ref_img_fn = fn_img1
         sec_img_fn = fn_img2
         
