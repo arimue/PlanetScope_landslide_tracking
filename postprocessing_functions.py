@@ -17,7 +17,9 @@ import matplotlib.patches as patches
 from tqdm import tqdm
 import rasterio
 from scipy.stats import circmean, circstd
-
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import pairwise_distances
 
 def calc_velocity(fn, dt):
     
@@ -393,4 +395,36 @@ def calculate_average_direction(average_fn):
     subtract[dx<0] = 360
     direction = abs(subtract-direction)
     save_file([direction], average_fn, os.path.join(path,"average_direction.tif"))
+
+def find_clusters(path):
+    #TODO: improve this!
+    path = "./Dove-C_Jujuy_all/L1B/"
+    vel = read_file(os.path.join(path, "average_velocity.tif"))
+    direct = read_file(os.path.join(path, "average_direction.tif"))
+    dx = read_file(os.path.join(path, "average_dx_dy.tif"), 1)
+    dy = read_file(os.path.join(path, "average_dx_dy.tif"), 2)
+
+    direct[np.isnan(direct)] = -9999
+    #x, y = np.meshgrid(np.arange(vel.shape[1]), np.arange(vel.shape[0]))
+    
+     #Stack the image data into a 2D array
+    data = np.column_stack((vel.flatten(), direct.flatten(), dx.flatten(), dy.flatten()))    
+    # Define the number of clusters and the spatial weight
+    K = 15
+    
+    kmeans = KMeans(n_clusters=K, random_state=0)
+    #weight = np.array([2,2,2,1,0.5, 0.5])
+    # introduce weights by multiplying data matrix by weight matrix
+    #weighted_data = data * weight[np.newaxis, :]
+    
+    # fit the weighted data to the k-means algorithm
+    clusters = kmeans.fit(data).labels_
+    
+    # reshape the cluster labels to match the original image shape
+    cluster_img = clusters.reshape(vel.shape)
+    ls = cluster_img
+    ls[ls!=1] = 0
+    # visualize the clustered image
+    plt.imshow(ls)
+    plt.show()
 

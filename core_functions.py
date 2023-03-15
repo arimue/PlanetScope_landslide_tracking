@@ -494,12 +494,13 @@ def mp_correlate(fn_img1, fn_img2, demname, amespath, ul_lon = None, ul_lat = No
 
 
     prefix = f"{ident1}_{ident2}_clip"
-    stereopath = path + "stereo/"
+    stereopath = path + "/stereo/"
     prefix_mp = prefix + "_mp"
     
     disp_fn = f"{stereopath}{prefix_mp}-F.tif"
     
     if not os.path.isfile(disp_fn):
+        
         stereopath = asp.correlate_asp(amespath, ref_img_fn_mp, sec_img_fn_mp, sp_mode = 2, prefix = prefix_mp, method = "asp_bm")
         asp.clean_asp_files(stereopath, prefix_mp)
     else:

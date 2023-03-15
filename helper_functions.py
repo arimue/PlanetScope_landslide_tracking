@@ -98,7 +98,7 @@ def rasterValuesToPoint(xcoords, ycoords, rastername):
 
 def min_max_scaler(x):
     if len(x)>1:
-        return (x-min(x))/(max(x)-min(x))
+        return (x-np.nanmin(x))/(np.nanmax(x)-np.nanmin(x))
     elif len(x) == 1: 
         return np.array([1])
     else: 

@@ -3,8 +3,9 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
-from helper_functions import read_file, read_meta
+from helper_functions import read_file, read_meta, min_max_scaler, get_date, get_scene_id
 import os
+import pandas as pd
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import cv2 as cv
 
@@ -100,4 +101,88 @@ def plot_single_results(fn1, fn2 = None, plot_velocity = False, limP = 2, limH =
  
     plt.show()
     
+    
+def make_video(matchfile, video_name = "out.mp4", refvalue = 7916, refposx = 70, refposy = 214):
+    #TODO: Improve this!!!
+    df = pd.read_csv(matchfile)
+    
+    df["remapped"] = df.sec.str.rstrip('.tif') + "_clip_remap_Err.tif"
+    df["id_ref"] = df.ref.apply(get_scene_id)
+    df["id_sec"] = df.sec.apply(get_scene_id)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+
+    refposx = 145
+    refposy = 275
+    refvalue = 4923
+    
+    dates = list(df.date_sec)
+    dates.append(df.date_ref[0])
+    dates.sort()
+    files = list(df.remapped)
+    files.append(df.ref[0][:-4]+"_clip.tif")
+    files.sort()
+    
+    timeline = pd.date_range(min(dates), max(dates),freq='d')
+    timeline_files = []
+    
+    for time in timeline:
+        dt = [abs((time-d).days) for d in dates]
+        idx = dt.index(min(dt)) 
+        timeline_files.append(files[idx])
+    for f in files: 
+
+        img = cv.imread(f, cv.IMREAD_UNCHANGED)
+        #img = img[600:900, 1450:1900]
+        img = img[700:1100,1550:2300]
+        img = img.astype(np.float32)
+        img[img == 0] = np.nan
+        
+        diff_at_refpos = refvalue - img[refposy, refposx]
+        
+        img = img + diff_at_refpos
+        
+        #img[img > np.nanpercentile(img, 99)] = np.nanpercentile(img, 99)
+        img = min_max_scaler(img)
+        #img = img/np.nanmax(img)*255
+        img = img * (2**16-1)
+        img[np.isnan(img)] = 0
+
+        img = img.astype(np.uint16)
+        
+
+        #equalize histogram 
+        #img = cv.equalizeHist(img)
+        
+        cv.imwrite(f[:-4]+ "_eq.tif", img)
+        
+    path = "/home/ariane/Documents/PlanetScope/Dove-C_Jujuy_all/L1B/"
+    timeline_files = [path + "20161205_134509_0e1f_1B_AnalyticMS_b2_clip_remap_Err.tif", path + "20171212_135346_1022_1B_AnalyticMS_b2_clip_remap_Err.tif", path + "20181001_140308_0f35_1B_Analytic_b2_clip_remap_Err.tif", path + "20201012_141343_1012_1B_AnalyticMS_b2_clip_remap_Err.tif", path + "20220412_140659_103b_1B_AnalyticMS_b2_clip_remap_Err.tif"]
+    
+    path = "/home/ariane/Documents/PlanetScope/SD_Jujuy_5deg/"
+    timeline_files = [path + "20200516_134707_21_2277_1B_AnalyticMS_b2_clip_remap_Err.tif", path + "20220912_141056_91_2486_1B_AnalyticMS_b2_clip_remap_Err.tif", path + "20200516_134707_21_2277_1B_AnalyticMS_b2_clip_remap_Err.tif", path + "20220912_141056_91_2486_1B_AnalyticMS_b2_clip_remap_Err.tif"]
+    
+    
+    with open('file_list.txt', 'w') as fl:
+        for line in timeline_files:
+            fl.write(f"file {line[:-4]}_eq.tif\n")
+    
+    cmd = f"ffmpeg -r 1 -safe 0 -y -f concat -i file_list.txt -vf 'pad=ceil(iw/2)*2:ceil(ih/2)*2' -r 10 -c:v libx264 -pix_fmt yuv420p /home/ariane/Documents/PlanetScope/SuperDove_selected_images.mp4"
+    os.system(cmd)
+
+    cmd = f"ffmpeg -y -i /home/ariane/Documents/PlanetScope/SuperDove_selected_images.mp4 -vf 'fps=10,scale=1080:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse' -loop 0 SuperDove_selected_images.gif"  
+    os.system(cmd)
+    # frame = cv.imread(files[0], cv.IMREAD_UNCHANGED)
+    # height, width = frame.shape
+    
+    # video = cv.VideoWriter(video_name, 0, 1, (width,height))
+    
+    # for f in files:
+    #     img = cv.imread(f, cv.IMREAD_UNCHANGED)
+    #     img =img/np.max(img)*255
+    #     img = img.astype(np.uint8)
+    #     video.write(img)
+    
+    # cv.destroyAllWindows()
+    # video.release()
     

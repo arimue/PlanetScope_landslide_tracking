@@ -66,7 +66,7 @@ cutline = "new_polygon_DoveC.geojson"
 #df = pd.read_csv(path+"sd_matches_crossangle.csv")#(file)
 
 df = pd.read_csv(path+"matches_mp_originalRPCs.csv")#(file)
-df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+#df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
 
 for i in range(len(df)):
 #     core.raw_correlate_and_correct(df.ref[i], df.sec[i], dem, amespath, ul_lon, ul_lat, xsize = xsize, ysize = ysize, zgrid = None, dem_err_x = dem_err_x, dem_err_y = dem_err_y, reduce = 5, first_fit_order = 1, ext = "_Err", overwrite = False, plot = False)
