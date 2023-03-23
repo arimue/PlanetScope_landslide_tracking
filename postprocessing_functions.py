@@ -200,6 +200,8 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
         disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F{ext}.tif"
+        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+
 
         if os.path.isfile(disp):
             
@@ -314,7 +316,64 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
         # #plt.savefig("show_area.png", dpi = 400)
         # plt.show()
         
+def get_stats_for_allpairs(matchfile, take_velocity = True):
+       
+    df = pd.read_csv(matchfile)
+    path,_ = os.path.split(matchfile)
+    if os.path.isfile("./temp.tif"):
+        os.remove("./temp.tif")
 
+    df["id_ref"] = df.ref.apply(get_scene_id)
+    df["id_sec"] = df.sec.apply(get_scene_id)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+    
+    df["dt"]  = df.date_sec - df.date_ref
+
+    #extract statistics from disparity files
+    if take_velocity:
+        print("Getting velocity stats...")
+        ext = "_velocity"
+        stats = np.zeros((len(df), 3))
+        stats[:] = np.nan
+        colnames = ["v_median", "v_p25", "v_p75"]
+
+    else: 
+        print("Getting mapprojected dx/dy stats...") #use the mapprojjected version to make sure that raster res is exactly 3 m 
+        ext = "_mp"
+        stats = np.zeros((len(df), 6))
+        stats[:] = np.nan
+        colnames = ["dx_median", "dx_p25", "dx_p75", "dy_median", "dy_p25", "dy_p75"]
+
+
+    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
+
+        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F{ext}.tif"
+        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+
+        if os.path.isfile(disp):
+            if take_velocity:
+                vel = read_file(disp)
+                stats[index, 0] = np.nanmedian(vel)
+                stats[index, 1] = np.nanpercentile(vel, 25)
+                stats[index, 2] = np.nanpercentile(vel, 75)
+            else:
+                dx = read_file(disp)
+                stats[index, 0] = np.nanmedian(dx)
+                stats[index, 1] = np.nanpercentile(dx, 25)
+                stats[index, 2] = np.nanpercentile(dx, 75)
+                dy = read_file(disp)
+                stats[index, 3] = np.nanmedian(dy)
+                stats[index, 4] = np.nanpercentile(dy, 25)
+                stats[index, 5] = np.nanpercentile(dy, 75)
+            
+    out = pd.DataFrame(stats, columns = colnames)
+    out = pd.concat([df, out], axis = 1)
+
+    out.to_csv(f"{path}/stats{ext}.csv", index = False)
+
+    
+        
 
 def stack_rasters(matchfile, take_velocity = True, max_dt = 861):
     df = pd.read_csv(matchfile)

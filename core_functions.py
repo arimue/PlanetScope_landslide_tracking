@@ -136,13 +136,12 @@ def fit(fit_points, direction, xgrid, ygrid, dgrid, mask, zgrid = None, egrid = 
     
             fit_points = fit_points.loc[(fit_points["d_fit3"] >= dlow) & (fit_points["d_fit3"] <= dup)]
             
-            
             iqr_before = iqr_now
             iqr_now = np.nanpercentile(disp_corrected3.flatten(), 75)-np.nanpercentile(disp_corrected3.flatten(),25)
             iqr_diff = iqr_before - iqr_now
             print(f"Iteration: {it}, IQR now: {iqr_now}, IQR change: {iqr_diff}")
             it+=1
-        
+            
     #plotting
     if plot: 
         dgrid[mask==0] = np.nan
