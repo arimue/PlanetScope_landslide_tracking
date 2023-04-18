@@ -33,8 +33,8 @@ from helper_functions import get_scene_id, read_file, read_meta
 
 #after remapping correlate these images
 
-#file = preprocessing.build_remapped_match_file_crossref('/home/ariane/Documents/PlanetScope/SD_Jujuy_Nadir/sd_matches_crossangle.csv')
-#file = preprocessing.build_remapped_match_file_crossref('/home/ariane/Documents/PlanetScope/Dove-C_Jujuy_all/L1B/matches.csv')
+#file = preprocessing.build_remapped_match_file_crossref('/home/ariane/Documents/PlanetScope/SD_Jujuy_Nadir/sd_matches_crossangle.csv', dt_min = 183)
+#file = preprocessing.build_remapped_match_file_crossref('/home/ariane/Documents/PlanetScope/Dove-C_Jujuy_all/L1B/matches.csv', dt_min = 183)
 
 #Dove-C
 # ul_lon = -65.61782
@@ -44,10 +44,10 @@ from helper_functions import get_scene_id, read_file, read_meta
 # xsize = 3200
 
 #Super Dove
-ul_lon = -65.61782
-ul_lat = -23.88517
-xsize = 3200
-ysize = 2200
+# ul_lon = -65.61782
+# ul_lat = -23.88517
+# xsize = 3200
+# ysize = 2200
 
 path = "./SD_Jujuy_Nadir/"
 
@@ -57,48 +57,58 @@ amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-
 dem = "./data/DEM/EGM96/demcoreg_alos/CopernicusDEM_EasternCordillera_EGM96_clip_AW3D30_NWArg_nuth_x+10.19_y-0.36_z+2.36_align_3m.tif"
 # dem_err_x = f"{path}/stereo/dem_error_dx_mean_mgm.tif"
 # dem_err_y = f"{path}/stereo/dem_error_dy_mean_mgm.tif"
-#cutline = "polygon_SuperDove.geojson"
-cutline = "new_polygon_DoveC.geojson"
+cutline = "polygon_SuperDove.geojson"
+#cutline = "new_polygon_DoveC.geojson"
 
 
-dem_err_x = "./SD_Jujuy_all/stereo/dem_error_dx_mean_bm.tif"
-dem_err_y = "./SD_Jujuy_all/stereo/dem_error_dy_mean_bm.tif"
+# dem_err_x = "./SD_Jujuy_all/stereo/dem_error_dx_mean_bm.tif"
+# dem_err_y = "./SD_Jujuy_all/stereo/dem_error_dy_mean_bm.tif"
 
 #df = pd.read_csv(path+"matches.csv")#(file)
-df = pd.read_csv(path+"sd_matches_crossangle.csv")#(file)
-df = df.iloc[14:15].reset_index(drop = True)
+#df = pd.read_csv(path+"sd_matches_crossangle.csv")#(file)
+#df = df.iloc[13:14].reset_index(drop = True)
 # #df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
 
-for i in range(len(df)):
-      core.raw_correlate_and_correct(df.ref[i], df.sec[i], dem, amespath, ul_lon, ul_lat, xsize = xsize, ysize = ysize, zgrid = "estimate", dem_err_x = dem_err_x, dem_err_y = dem_err_y, reduce = 5, first_fit_order = 1, ext = "_Err", overwrite = False, plot = False)
-
-#    core.mp_correlate(df.ref[i], df.sec[i], dem, amespath, crop_before_mp = False, cutline = cutline, plot = False)
-
-    
-# df = pd.read_csv(path+"matches_remapped_crossref.csv")
+# df = pd.read_csv(path + "matches_remapped_crossref_mp.csv")
+# df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+# df = df.iloc[4:5].reset_index(drop = True)
 
 # for i in range(len(df)):
+# #       core.raw_correlate_and_correct(df.ref[i], df.sec[i], dem, amespath, ul_lon, ul_lat, xsize = xsize, ysize = ysize, zgrid = "estimate", dem_err_x = dem_err_x, dem_err_y = dem_err_y, reduce = 5, first_fit_order = 1, ext = "_Err", overwrite = False, plot = False)
+
+#     core.mp_correlate(df.ref[i], df.sec[i], dem, amespath, crop_before_mp = False, cutline = cutline, plot = False)
+
+# #path = "./SD_Jujuy_Nadir/"
+
+# df = pd.read_csv(path+"matches_remapped_crossref.csv")
+# df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+
+# for i in [4]:#range(len(df)):
 #     core.correlate_remapped_img_pairs(df.ref[i], df.sec[i], amespath)
 
 aoi = "landslide_mask.geojson"
  
 matchfile = "./SD_Jujuy_Nadir/matches_remapped_crossref.csv"
-# img_with_rpc = "./SD_Jujuy_Nadir/20220924_134300_71_2212_1B_AnalyticMS_b2_clip.tif"
+img_with_rpc = "./SD_Jujuy_Nadir/20220924_134300_71_2212_1B_AnalyticMS_b2_clip.tif"
 # postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = True, weigh_by_dt=False)
 
- 
+postprocessing.stack_rasters(matchfile, take_velocity=True)
+
+#postprocessing.get_stats_for_allpairs(matchfile, take_velocity = True)
+
     
-#matchfile = "./Dove-C_Jujuy_all/L1B/matches_remapped_crossref.csv"
-#matchfile = "./Dove-C_Jujuy_all/L1B/matches_mp_originalRPCs.csv"
-#img_with_rpc = "./Dove-C_Jujuy_all/L1B/20190626_140959_103c_1B_Analytic_b2_clip.tif"
-
+# matchfile = "./Dove-C_Jujuy_all/L1B/matches_remapped_crossref_mp.csv"
+# #matchfile = "./Dove-C_Jujuy_all/L1B/matches_mp_originalRPCs.csv"
+# img_with_rpc = "./Dove-C_Jujuy_all/L1B/20190626_140959_103c_1B_Analytic_b2_clip.tif"
+## fixed res PSBSD = 3.670189073838629
+## fixed res DoveC = 3.91910337761
 # path = "./SD_Jujuy_Nadir/"
-# matchfile = path+"matches_remapped_crossref_mp_originalRPCs.csv"
+# matchfile = path+"matches_remapped_crossref.csv"
+# img_with_rpc = "./SD_Jujuy_Nadir/20220924_134300_71_2212_1B_AnalyticMS_b2_clip.tif"
+#postprocessing.mapproject_and_calc_velocity(amespath, matchfile, dem, fixed_res = 3, img_with_rpc = img_with_rpc, velocity_only=True)
 
-#postprocessing.mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc = img_with_rpc)
-
-# postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = False, weigh_by_dt=False)
-# postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = True, weigh_by_dt=False)
+#postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = False, weigh_by_dt=False)
+#postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = True, weigh_by_dt=False)
 
 #postprocessing.get_stats_for_allpairs(matchfile, take_velocity = True)
 
@@ -115,6 +125,5 @@ matchfile = "./SD_Jujuy_Nadir/matches_remapped_crossref.csv"
 #postprocessing.mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc)
 # postprocessing.generate_timeline(matchfile, xcoord = xcoord, ycoord = ycoord, pad = pad, take_velocity = True, plot = True)
 #postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = True)
-# postprocessing.stack_rasters(matchfile, take_velocity=True)
 # postprocessing.stack_rasters(matchfile, take_velocity=False)
 # postprocessing.calculate_average_direction(path+"average_dx_dy_mp.tif")

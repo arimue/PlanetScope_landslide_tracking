@@ -22,6 +22,11 @@ def isolateBand(img, bandNr=2):
     subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
     return out_img
 
+# import glob
+# files = glob.glob("/home/ariane/Downloads/more_PSBSD_L3B_psscene_analytic_sr_udm2/files/*_SR_clip.tif")
+# for f in files:
+#     isolateBand(f)
+
 def preprocess_scenes(files, outpath = "./", bandNr = 2):
     out = []
     for file in files:

@@ -20,15 +20,20 @@ from scipy.stats import circmean, circstd
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import pairwise_distances
+import cv2
 
-def calc_velocity(fn, dt):
+
+def calc_velocity(fn, dt, fixed_res = None):
     
 
     # load autoRIFT output
     with rasterio.open(fn) as src:
         # get raster resolution from metadata
-        meta = src.meta
-        res = meta["transform"][0]
+        if fixed_res is None:
+            meta = src.meta
+            res = meta["transform"][0]
+        else:
+            res = fixed_res
         #print(res)
         # first band is offset in x direction, second band in y
         dx = src.read(1)
@@ -55,7 +60,7 @@ def calc_velocity(fn, dt):
     vector_2 = np.dstack((dx,dy))
     unit_vector_1 = north / np.linalg.norm(north)
     unit_vector_2 = vector_2 / np.linalg.norm(vector_2, axis = 2, keepdims = True)
-    #here np.tensordot is needed (instead of np.dot) because of the multiple dimensions of the input arrays
+    #there np.tensordot is needed (instead of np.dot) because of the multiple dimensions of the input arrays
     dot_product = np.tensordot(unit_vector_1,unit_vector_2, axes=([0],[2]))
 
     direction = np.rad2deg(np.arccos(dot_product))
@@ -67,10 +72,11 @@ def calc_velocity(fn, dt):
     
     return v, direction
     
-def mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc, resolution = 3, epsg = "32720", ext = "mp", overwrite = False, velocity_only = False):
+def mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc, fixed_res = None, out_res = 3, epsg = "32720", ext = "mp", overwrite = False, velocity_only = False):
     df = pd.read_csv(matchfile)
-    #df = df.reindex(index=df.index[::-1])
-    #df = df.iloc[40:, :]
+    #df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+
+    #df = df.iloc[200:, :]
     path,_ = os.path.split(matchfile)
 
     df["id_ref"] = df.ref.apply(get_scene_id)
@@ -82,31 +88,31 @@ def mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc, resolut
 
     #extract statistics from disparity files
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F.tif"
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
-
-        #copy_rpcs(img_with_rpc, disp)
+        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F.tif"
+        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
         if os.path.isfile(disp):
-            if not velocity_only:
-                #mapproject
-                if not os.path.isfile(f"{disp[:-4]}_{ext}.tif") or overwrite:
-                    #if the mapprojected result doesnt show in QGIS, make sure to remove Band 4 as the alpha band from the transparency settings
-                    output = asp.mapproject(amespath, disp, dem, img_with_rpc, ext = ext, resolution = resolution, epsg = epsg)       
-                else:
-                    print("Mapprojected disparity exists. Skipping mapprojection...")
-                    output = f"{disp[:-4]}_{ext}.tif"
-            else: 
-                output = disp
             if not os.path.isfile(disp[:-4]+"_velocity.tif") or overwrite: 
-                v, direction = calc_velocity(output, row["dt"])
-                save_file([v,direction], output, outname = disp[:-4]+"_velocity.tif")
+                v, direction = calc_velocity(disp, row["dt"], fixed_res = fixed_res)
+                #cv2.imwrite(disp[:-4]+"_imgspace_velocity.tif", v)
+                #TODO: when using mapprojected data, cannot use cv imwrite
+                save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
             else:
                 print("Velocity file exists. Skipping velocity calculation...")
+
+            if not velocity_only:
+                #mapproject
+                if not os.path.isfile(f"{disp[:-4]}_imgspace_velocity_{ext}.tif") or overwrite:
+                    #if the mapprojected result doesnt show in QGIS, make sure to remove Band 4 as the alpha band from the transparency settings
+                    output = asp.mapproject(amespath, disp[:-4]+"_imgspace_velocity.tif", dem, img_with_rpc, ext = ext, resolution = out_res, epsg = epsg)       
+                else:
+                    print("Mapprojected disparity exists. Skipping mapprojection...")
+
         else:
             print(f"Warning! Disparity file {disp} not found.")
 
 
 def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None, take_velocity = True, angles = False):
+    r[r==-9999] = np.nan
     if not take_velocity:
         if dt is None or resolution is None: 
             print("Need to provide a time difference and raster resolution when getting stats for dx/dy.")
@@ -129,6 +135,8 @@ def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None,
     return mean, p25, p75, std
 
 def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True, angles = False):
+    r[r==-9999] = np.nan
+
     if not take_velocity:
         if dt is None or resolution is None: 
             print("Need to provide a time difference and raster resolution when getting stats for dx/dy.")
@@ -181,17 +189,17 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
     #extract statistics from disparity files
     if take_velocity:
         print("Using velocity to generate timeline...")
-        ext = "_velocity"
+        ext = "_imgspace_velocity_mp"
         colnames = ["vel", "vel_p25", "vel_p75", "vel_std", "ang", "ang_std"]
         angles = True
-        timeline_stats = np.zeros([len(timeline), 6])
+        timeline_stats = np.zeros([len(timeline), 7])
 
-    else: 
+    else: #TODO: tis needs refinement since I am only mapprojecting the velocity
         print("Using mapprojected dx/dy to generate timeline...") #use the mapprojjected version to make sure that raster res is exactly 3 m 
         ext = "_mp"
         colnames = ["dx", "dx_p25", "dx_p75", "dx_std", "dy", "dy_p25", "dy_p75", "dy_std"]
         angles = False
-        timeline_stats = np.zeros([len(timeline), 8])
+        timeline_stats = np.zeros([len(timeline), 10])
 
     stats = np.zeros((len(df), 9))
     stats[:] = np.nan
@@ -200,10 +208,11 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
         disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F{ext}.tif"
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F_velocity.tif"
 
 
         if os.path.isfile(disp):
+           # print(disp)
             
             if aoi is not None:
                 
@@ -221,8 +230,10 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
                 #get mean in sample region and iqr/p75 (weight) for dx or velocity
                 stats[index,0], stats[index,1], stats[index,2], stats[index,3]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity, angles = False)
                 #same for dy or direction
-                stats[index,4], stats[index,5], stats[index,6], stats[index,7]  = offset_stats_aoi(read_file(disp, 2), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity, angles = angles)
-
+                #stats[index,4], stats[index,5], stats[index,6], stats[index,7]  = offset_stats_aoi(read_file(disp, 2), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity, angles = angles)
+                
+                if stats[index,0] > 100:
+                    print(f"Warning! {disp} exceeds 100 m.")
             else:
                 #get mean in sample region and iqr/p75 (weight) for dx or velocity
                 stats[index,0], stats[index,1], stats[index,2], stats[index,3]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity, angles = False)
@@ -234,6 +245,10 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
         else:
           print(f"Warning! Disparity file {disp} not found.")
     
+    #TODO: improve quick fix for not having the direction in the mapprojected scene: fill rows to keep them
+    
+    stats[:,4] = 1
+    stats[:,5] = 1
     #deleting temporary mask raster
     os.remove("./temp.tif")
     #generate timeline assuming linear velocity between first and second image and performing a weighted average for each day of change
@@ -263,8 +278,9 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
                 else: 
                     weights = 1/stats[active,2]
                     
-                timeline_stats[i,:] = np.average(stats[active,:6], axis=0, weights= weights)
-    
+                timeline_stats[i,:-1] = np.average(stats[active,:6], axis=0, weights= weights)
+                timeline_stats[i,-1]  = np.sqrt(np.cov(stats[active,0], aweights=weights)) #weighted standard deviation
+
             else: #dx/dy separate case
             
                 if weigh_by_dt:
@@ -275,20 +291,26 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
                     weights2 = dt_weights + disp_weights2
 
                 else:
-                    weights1 = 1/(stats[active, 2]-stats[active, 1])
-                    weights2 = 1/(stats[active, 5]-stats[active, 4])
+                    weights1 = 1/(stats[active, 2]-stats[active, 1]) #IQR
+                    weights2 = 1/(stats[active, 6]-stats[active, 5])
                     
                                                
                 #separate weights for dx and dy
                 timeline_stats[i,:4] = np.average(stats[active, :4], weights = weights1, axis=0)
-                timeline_stats[i,4:6] = np.average(stats[active, 4:6], weights = weights2, axis=0)
-            
+                timeline_stats[i,4:-2] = np.average(stats[active, 4:-1], weights = weights2, axis=0)
+                
+                timeline_stats[i,-2]  = np.sqrt(np.cov(stats[active,0], aweights=weights1)) #weighted standard deviation
+                timeline_stats[i,-1]  = np.sqrt(np.cov(stats[active,4], aweights=weights2)) #weighted standard deviation
+
         timeline_alldata = np.concatenate((timeline_alldata,stats[active, :]), axis = 0)
         #print(len(stats[active, :]))
         count[i] = len(stats[active,:])
         
-    
-    out = pd.DataFrame(timeline_stats, columns = colnames)
+    if take_velocity:
+        out = pd.DataFrame(timeline_stats, columns =  [*colnames, "mean_vel_avg_std"])
+    else: 
+        out = pd.DataFrame(timeline_stats, columns =  [*colnames, "mean_vel_avg_std_dx", "mean_vel_avg_std_dy"])
+
     out["date"] = timeline
     out["count"] = count
     
@@ -299,12 +321,12 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
     
         
     if aoi is not None:
-        timeline_alldata.to_csv(f"{path}/timeline_alldata_aoi{ext}_maxDT.csv", index = False)
-        out.to_csv(f"{path}/timeline_averaged_aoi{ext}_maxDT.csv", index = False)
+        timeline_alldata.to_csv(f"{path}/timeline_alldata_aoi{ext}_new.csv", index = False)
+        out.to_csv(f"{path}/timeline_averaged_aoi{ext}_new.csv", index = False)
     else:
         
-        timeline_alldata.to_csv(f"{path}/timeline_alldata_x{xcoord}_y{ycoord}_pad{pad}{ext}_maxDT.csv", index = False)
-        out.to_csv(f"{path}/timeline_averaged_x{xcoord}_y{ycoord}_pad{pad}{ext}_maxDT.csv", index = False)
+        timeline_alldata.to_csv(f"{path}/timeline_alldata_x{xcoord}_y{ycoord}_pad{pad}{ext}_new.csv", index = False)
+        out.to_csv(f"{path}/timeline_averaged_x{xcoord}_y{ycoord}_pad{pad}{ext}_new.csv", index = False)
 
     
         
@@ -317,7 +339,7 @@ def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad =
         # plt.show()
         
 def get_stats_for_allpairs(matchfile, take_velocity = True):
-       
+    #good for heatmaps
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
     if os.path.isfile("./temp.tif"):
@@ -333,7 +355,7 @@ def get_stats_for_allpairs(matchfile, take_velocity = True):
     #extract statistics from disparity files
     if take_velocity:
         print("Getting velocity stats...")
-        ext = "_velocity"
+        ext = "_imgspace_velocity_mp"
         stats = np.zeros((len(df), 3))
         stats[:] = np.nan
         colnames = ["v_median", "v_p25", "v_p75"]
@@ -390,9 +412,12 @@ def stack_rasters(matchfile, take_velocity = True, max_dt = 861):
     if take_velocity: 
         print("Stacking velocity...")
         
-        ext = "velocity"
+        ext = "imgspace_velocity_mp"
         df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+"_remap-F_"+ext+".tif"
-        array_list = [np.ma.masked_invalid(read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
+        #TODO: check which one is the nodata value
+        #array_list = [np.ma.masked_invalid(read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
+        array_list = [np.ma.masked_equal(read_file(x,1), -9999) for x in df.filenames if os.path.isfile(x)]
+
         weights = [1/np.nanpercentile(a.data,75) for a in array_list]
         average_velocity = np.ma.average(array_list, axis=0, weights=weights)
         save_file([average_velocity], df.filenames[0], os.path.join(path,"average_velocity.tif"))
