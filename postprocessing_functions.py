@@ -88,14 +88,14 @@ def mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc, fixed_r
 
     #extract statistics from disparity files
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F.tif"
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F.tif"
+        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
         if os.path.isfile(disp):
-            if not os.path.isfile(disp[:-4]+"_velocity.tif") or overwrite: 
+            if not os.path.isfile(disp[:-4]+"_imgspace_velocity.tif") or overwrite: 
                 v, direction = calc_velocity(disp, row["dt"], fixed_res = fixed_res)
-                #cv2.imwrite(disp[:-4]+"_imgspace_velocity.tif", v)
+                cv2.imwrite(disp[:-4]+"_imgspace_velocity.tif", v)
                 #TODO: when using mapprojected data, cannot use cv imwrite
-                save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
+                #save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
             else:
                 print("Velocity file exists. Skipping velocity calculation...")
 
