@@ -5,13 +5,13 @@ Created on Wed Jan 12 14:01:48 2022
 
 @author: ariane
 """
-import rasterio, os, fnmatch, datetime, subprocess, glob
+import rasterio, os, fnmatch, datetime, subprocess, glob, json
 import numpy as np
 from osgeo import gdal, gdalconst
 import pandas as pd
 from scipy.ndimage import label, binary_dilation
 from rpcm.rpc_model import rpc_from_geotiff
-
+from pyproj import Transformer, CRS
 
 def list_files(dir, pattern):
     r = []
@@ -104,6 +104,10 @@ def min_max_scaler(x):
     else: 
         return np.array([])
     
+def fixed_val_scaler(x, xmin, xmax):
+    return (x-xmin)/(xmax-xmin)
+
+    
 def impute(arr, max_fillsize = 1000):
     #fill holes in disparity raster with mean of surroundings
     #after https://stackoverflow.com/questions/41550979/fill-holes-with-majority-of-surrounding-values-python
@@ -120,6 +124,48 @@ def impute(arr, max_fillsize = 1000):
             imputed_array[hole] = np.nanmean(surrounding_values)
 
     return imputed_array
+
+def size_from_aoi(aoi, gsd = 4, epsg = 32720):
+    
+    #gets approximate dimensions for clipping raw data from aoi
+    #AOI has to be a rectangle 
+    with open(aoi) as f:
+         gj = json.load(f)
+         
+    coords = list(set([tuple(c) for c in gj["features"][0]["geometry"]["coordinates"][0]]))
+    
+    if len(coords) !=4:
+        print("AOI has to be a rectangle!")
+        #return
+    #get corner coords of polygon by splitting in upper and lower half
+    yc = np.unique([c[1] for c in coords])
+
+    upper = [c for c in coords if c[1]>=yc[-2]]
+    upper.sort()
+    upperleft = upper[0]
+    upperright = upper[1]
+    
+    lower = [c for c in coords if c[1]<yc[-2]]
+    lower.sort()
+    lowerleft = lower[0]
+    
+    ul_lon = upperleft[0]
+    ul_lat = upperleft[1]
+
+    #calculate distances (in m) from corner to corner to get size of the aoi
+    sizecoords = [lowerleft, upperleft, upperright]
+    transformer = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
+    coords_proj = [transformer.transform(c[0],c[1]) for c in sizecoords]
+    
+    dists = []
+    for i in range(len(coords_proj)-1):
+        d = np.sqrt((coords_proj[i+1][0]-coords_proj[i][0])**2+(coords_proj[i+1][1]-coords_proj[i][1])**2)
+        dists.append(d)
+    
+    xsize = int(dists[1]/gsd)
+    ysize = int(dists[0]/gsd)
+
+    return ul_lon, ul_lat, xsize, ysize
 
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
     rpc = rpc_from_geotiff(img)
@@ -167,15 +213,15 @@ def copy_rpcs(rpc_fn, non_rpc_fn):
     del(non_rpc_img)
     
 #PS scene specific
-def get_scene_id(fn):
+def get_scene_id(fn, level = 1):
     #extract the scene id from a PS scene filename
     #assumes the filename still begins with the scene ID (should be default when downloading data)
     
     #make sure to remove the path if still part of the image
     _, fn = os.path.split(fn)
-    if fn.split("_").index("1B") == 4: #PSB.SD case
+    if fn.split("_").index(f"{level}B") == 4: #PSB.SD case
         scene_id = "_".join(fn.split("_")[0:4])
-    elif fn.split("_").index("1B") == 3: #PS2 case
+    elif fn.split("_").index(f"{level}B") == 3: #PS2 case
         scene_id = "_".join(fn.split("_")[0:3])
     else: 
         print("Couldn't guess the instrument type. Have you modifies filenames?")

@@ -180,8 +180,6 @@ class RPCModel:
 
         if not hasattr(self, 'lat_num'):
             lon, lat = self.localization_iterative(ncol, nrow, nalt)
-            #lon = apply_rfm(self.col_num, self.col_den, nrow, ncol, nalt)
-            #lat = apply_rfm(self.row_num, self.row_den, nrow, ncol, nalt)
         else:
             lon = apply_rfm(self.lon_num, self.lon_den, nrow, ncol, nalt)
             lat = apply_rfm(self.lat_num, self.lat_den, nrow, ncol, nalt)

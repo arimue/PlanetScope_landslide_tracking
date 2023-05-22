@@ -22,7 +22,8 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
         if nodata_value is not None: 
             cmd = f"{cmd} --nodata-value {nodata_value}"
     else:
-        if (corr_kernel > 9) or (corr_kernel%2 != 0):
+        print(corr_kernel)
+        if (corr_kernel > 9) or (corr_kernel%2 == 0):
             print("Correlation kernel size is not suitable for mgm. Pick an odd kernel size <= 9!")
             return
         cmd = f"{amespath}parallel_stereo {img1} {img2} {folder}stereo/{prefix} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --corr-kernel 9 9 --subpixel-mode {sp_mode} --subpixel-kernel {corr_kernel*2+1} {corr_kernel*2+1} --threads 0" 

@@ -9,9 +9,161 @@ import planet_search_functions as search
 import preprocessing_functions as preprocessing
 import postprocessing_functions as postprocessing
 import core_functions as core
+import asp_helper_functions as asp
 import pandas as pd
 import glob, os
-from helper_functions import get_scene_id, read_file, read_meta
+import numpy as np
+from helper_functions import get_scene_id, read_file, read_meta, size_from_aoi, fixed_val_scaler
+
+###################################LOSMEDANOS###########################################################################
+# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/LasZanjas/las_zanjas_aoi.geojson", cloud_cover_max=0.1)
+# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/LasZanjas/las_zanjas_aoi.geojson", minOverlap = 99)
+
+# stable = search.suggest_reference_and_stable_pair(df, max_day_diff = 15, angle_lim_ref = 0.1)
+
+####################################MINAPURNA############################################################################
+amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
+
+#amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
+demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM/COP_aligned_to_ALOS_3m_MPclip.tif"
+
+# 
+
+# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", cloud_cover_max=0.1, date_start = "2020-01-01", date_stop = "2023-03-31")
+# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
+
+#gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2022-07-01", date_stop = "2022-08-31")
+#df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
+#df_elements = df.sample(n=8)
+#matches = preprocessing.match_all(df_elements3, path = "./Siguas/L3B/")
+#matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+
+#groups = preprocessing.find_best_matches(df, mindt = 30, minGroupSize = 5)
+# groups = groups.loc[groups.group_id.isin([6])].reset_index(drop = True)
+# files = glob.glob("/home/ariane/Documents/PlanetScope/delMedio/L3B/*_b2.tif")
+# ids = [get_scene_id(f,level = 3) for f in files]
+# groups = groups.loc[groups.ids.isin(ids)].reset_index(drop = True)
+# groups.to_csv("/home/ariane/Documents/PlanetScope/delMedio/L3B/groupinfo.csv", index = False)
+
+# files = glob.glob("/home/ariane/Documents/PlanetScope/SD_Jujuy_5deg/*_b2.tif")
+# ids = [get_scene_id(f,level = 1) for f in files]
+# groups = df.loc[df.ids.isin(ids)].reset_index(drop = True)
+# groups.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/randomPairs/sceneinfo.csv", index = False)
+
+
+
+#matches = preprocessing.generate_matchfile_from_groups(groups, path = "./delMedio/L3B/", checkExistence = True)
+#matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence = True)
+# infodf = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/info_siguas_scenes.csv")
+# matches = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/all_matches.csv")
+# scores = preprocessing.rate_match(infodf, matches)
+#result = preprocessing.add_offset_from_mask_to_rated_matches(scores, stereopath ="/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/stereo/" , mask = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/siguas_dist_area.tif")
+#result.to_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/mask_stats.csv", index = False)
+#result = preprocessing.add_offset_variance_to_rated_matches(scores, stereopath = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/stereo/")
+#result.to_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/var_stats.csv", index = False)
+
+# all_files = glob.glob("./Siguas/L3B/*_b2.tif")
+# match = preprocessing.generate_matchfile(all_files, reference = "./Siguas/L3B/20220823_145618_97_2407_3B_AnalyticMS_SR_clip_b2.tif")
+# preprocessing.build_remapped_match_file_crossref("./Siguas/L3B/matches.csv", level = 3, dt_min = 0)
+# search.download_xml_metadata(list(df.ids), out_dir = "/home/ariane/Documents/PlanetScope/test_ang_calc/")
+# df = df.loc[df.ids != "20221101_140904_78_2490"]
+
+# stable = search.suggest_reference_and_stable_pair(df, max_day_diff = 20)
+
+#files = glob.glob("/home/ariane/Downloads/MinaPurna_PSBSD_moreUnstable_L1B_psscene_*/files/PSScene/*/*/*AnalyticMS.tif")
+
+# files = glob.glob("/home/ariane/Downloads/delMedio_*/files/*AnalyticMS_SR_clip.tif")
+# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L3B/", bandNr = 2)
+
+# #all_files = glob.glob("./MinaPurna/L1B/*_b2.tif")
+#reference = "./MinaPurna/L1B/20220823_133636_33_2465_1B_AnalyticMS_b2.tif"
+#df = preprocessing.generate_matchfile(all_files, reference, checkOverlap = False, refPoly = "/home/ariane/Documents/PlanetScope/polygon_DoveC.geojson", minOverlap = 95)
+
+
+aoi = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/mina_purna_aoi.geojson"
+#ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi)
+ul_lon = -65.71608534638614
+ul_lat = -24.276889492561747
+xsize = 4150
+ysize = 3300
+#df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/L1B/matches_stable.csv")
+
+#correlate stable pairs and subtract 3rd order fit only
+# for i in range(len(df)):
+#     core.raw_correlate_and_correct(df.ref[i], df.sec[i], demname, amespath, ul_lon, ul_lat, xsize = xsize, ysize = ysize, reduce = 1, first_fit_order = 3, ext = "_Err", overwrite = False, plot = False)
+
+# files = glob.glob("/home/ariane/Documents/PlanetScope/MinaPurna/L1B/stereo/bm_ck35/*clip_dx_corrected.tif")
+# core.estimate_topo_signal(files, direction = "x", method = "mean", plot = True)
+
+# files = glob.glob("/home/ariane/Documents/PlanetScope/MinaPurna/L1B/stereo/bm_ck35/*clip_dy_corrected.tif")
+# core.estimate_topo_signal(files, direction = "y", method = "mean", plot = True)
+
+#correlate unstable pairs
+# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/L1B/matches.csv")
+# df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+
+# dem_err_x = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/L1B/stable/dem_error_dx_mean_bm_ck35.tif"
+# dem_err_y = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/L1B/stable/dem_error_dy_mean_bm_ck35.tif"
+# for i in range(len(df)):
+#     core.raw_correlate_and_correct(df.ref[i], df.sec[i], demname, amespath, ul_lon, ul_lat, xsize = xsize, ysize = ysize, dem_err_x = dem_err_x, dem_err_y = dem_err_y, reduce = 1, first_fit_order = 1, ext = "_Err", overwrite = False, plot = False)
+
+#file = preprocessing.build_remapped_match_file_crossref('./MinaPurna/L1B/matches.csv', dt_min = 183)
+
+
+#correlate L3B data
+###################################################################################################################
+# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_group6.csv")
+# df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+
+# for i in range(8,len(df)):
+#     path,_ = os.path.split(df.ref[i])
+#     id1 = "_".join(df.ref[i].split("/")[-1].split("_")[0:4])
+#     id2 = "_".join(df.sec[i].split("/")[-1].split("_")[0:4])
+
+#     prefix = id1 + "_" + id2 + "L3B"
+#     if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
+
+#         stereopath = asp.correlate_asp(amespath, df.ref[i], df.sec[i], prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
+#         asp.clean_asp_files(stereopath, prefix)
+    
+####################################################################################################################
+#stack
+#postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv")
+# for group in [2,8,10]:
+#     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dx")
+#     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dy")
+
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dx")
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dy")
+
+#######################################################################################################################
+# infodf = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/info_taton_scenes.csv")
+# scores = preprocessing.rate_match(infodf, df)
+# scores = preprocessing.add_offset_variance_to_rated_matches(scores, stereopath = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/stereo/")
+# scores.to_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/var_stats.csv", index = False)
+
+
+
+# df = pd.read_csv("./MinaPurna/L1B/matches_remapped_crossref.csv")
+
+
+# for i in range(len(df)):
+#     core.correlate_remapped_img_pairs(df.ref[i], df.sec[i], amespath)
+
+
+###################################################
+
+matchfile = "./Siguas/L3B/matches_stable.csv"
+aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
+
+out = postprocessing.get_variance(matchfile, aoi = aoi, inverse = True)
+
+
+
+
+
+
+#########################################################################################################################
 
 #TODO: write wrapper for DEM error finding
 #TODO: write wrapper for applying correlation etc to files
@@ -49,16 +201,16 @@ from helper_functions import get_scene_id, read_file, read_meta
 # xsize = 3200
 # ysize = 2200
 
-path = "./SD_Jujuy_Nadir/"
+# path = "./SD_Jujuy_Nadir/"
 
-#path = "./Dove-C_Jujuy_all/L1B/"
+# #path = "./Dove-C_Jujuy_all/L1B/"
 
-amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
-dem = "./data/DEM/EGM96/demcoreg_alos/CopernicusDEM_EasternCordillera_EGM96_clip_AW3D30_NWArg_nuth_x+10.19_y-0.36_z+2.36_align_3m.tif"
-# dem_err_x = f"{path}/stereo/dem_error_dx_mean_mgm.tif"
-# dem_err_y = f"{path}/stereo/dem_error_dy_mean_mgm.tif"
-cutline = "polygon_SuperDove.geojson"
-#cutline = "new_polygon_DoveC.geojson"
+# amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
+# dem = "./data/DEM/EGM96/demcoreg_alos/CopernicusDEM_EasternCordillera_EGM96_clip_AW3D30_NWArg_nuth_x+10.19_y-0.36_z+2.36_align_3m.tif"
+# # dem_err_x = f"{path}/stereo/dem_error_dx_mean_mgm.tif"
+# # dem_err_y = f"{path}/stereo/dem_error_dy_mean_mgm.tif"
+# cutline = "polygon_SuperDove.geojson"
+# #cutline = "new_polygon_DoveC.geojson"
 
 
 # dem_err_x = "./SD_Jujuy_all/stereo/dem_error_dx_mean_bm.tif"
@@ -86,13 +238,13 @@ cutline = "polygon_SuperDove.geojson"
 # for i in [4]:#range(len(df)):
 #     core.correlate_remapped_img_pairs(df.ref[i], df.sec[i], amespath)
 
-aoi = "landslide_mask.geojson"
+# aoi = "landslide_mask.geojson"
  
-matchfile = "./SD_Jujuy_Nadir/matches_remapped_crossref.csv"
-img_with_rpc = "./SD_Jujuy_Nadir/20220924_134300_71_2212_1B_AnalyticMS_b2_clip.tif"
+# matchfile = "./SD_Jujuy_Nadir/matches_remapped_crossref.csv"
+# img_with_rpc = "./SD_Jujuy_Nadir/20220924_134300_71_2212_1B_AnalyticMS_b2_clip.tif"
 # postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = True, weigh_by_dt=False)
 
-postprocessing.stack_rasters(matchfile, take_velocity=True)
+#postprocessing.stack_rasters(matchfile, take_velocity=True)
 
 #postprocessing.get_stats_for_allpairs(matchfile, take_velocity = True)
 

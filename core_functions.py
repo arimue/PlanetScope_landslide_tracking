@@ -13,6 +13,7 @@ from rpcm.rpc_model import rpc_from_geotiff
 import multiprocessing
 import scipy.optimize
 import pandas as pd
+import scipy.ndimage
 import cv2 as cv
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
@@ -252,7 +253,6 @@ def raw_correlate_and_correct(fn_img1, fn_img2, demname, amespath, ul_lon, ul_la
 
     ref_img_fn = clip_raw(fn_img1, ul_lon, ul_lat, xsize, ysize, demname)
     sec_img_fn = clip_raw(fn_img2, ul_lon, ul_lat, xsize, ysize, demname)
-    
 
     #important: check for all zero columns and remove these
     ref_img = read_file(ref_img_fn)
@@ -279,7 +279,7 @@ def raw_correlate_and_correct(fn_img1, fn_img2, demname, amespath, ul_lon, ul_la
 
     #run correlation
     if not os.path.isfile(disp_fn) or overwrite:
-        stereopath = asp.correlate_asp(amespath, ref_img_fn, sec_img_fn, sp_mode = 2, method= "asp_bm", prefix = prefix)
+        stereopath = asp.correlate_asp(amespath, ref_img_fn, sec_img_fn, sp_mode = 2, method= "asp_bm", prefix = prefix, corr_kernel = 35)
         asp.clean_asp_files(stereopath, prefix)
     else:
         print("Disparity file exists. Skipping correlation.")
@@ -375,9 +375,11 @@ def raw_correlate_and_correct(fn_img1, fn_img2, demname, amespath, ul_lon, ul_la
     
     return sec_img_fn[:-4]+"_remap"+ext+".tif", disp_fn[:-6]+"_dx_corrected"+ext+".tif", disp_fn[:-6]+"_dy_corrected"+ext+".tif"
    
-
-def estimate_dem_error(files, direction, method = "median", asp_alg = "bm", kernelsize = 9, plot = False):
+def estimate_topo_signal(files, direction, method = "median", asp_alg = "bm", kernelsize = 9, plot = False):
     array_list = [read_file(x) for x in files]
+    #array_list = [np.ma.masked_invalid(read_file(x,1)) for x in files if os.path.isfile(x)]
+
+    
     for i in range(len(array_list)):
         #if can happen, that some of the disparities is inverted therefore check relation with first scene:
         df = pd.DataFrame({"x":array_list[0].flatten(), "y":array_list[i].flatten()})
@@ -388,7 +390,18 @@ def estimate_dem_error(files, direction, method = "median", asp_alg = "bm", kern
         if results[0]<0:
             print("Inverting disparity...")
             array_list[i]= array_list[i]*-1
-    
+            
+        pup = np.nanpercentile(array_list[i], 99.999)
+        plow = np.nanpercentile(array_list[i], 0.001)
+        
+        array_list[i][array_list[i]>pup]  = np.nan
+        array_list[i][array_list[i]<plow]  = np.nan
+
+
+    array_list = [np.ma.masked_invalid(x) for x in array_list]
+    array_list = [scipy.ndimage.median_filter(x, size = 5) for x in array_list]
+
+
     if method == "median": 
         m_arr = np.nanmedian(array_list, axis=0)
         m_arr = impute(m_arr) #fill small holes

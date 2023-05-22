@@ -23,7 +23,7 @@ from sklearn.metrics import pairwise_distances
 import cv2
 
 
-def calc_velocity(fn, dt, fixed_res = None):
+def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     
 
     # load autoRIFT output
@@ -47,6 +47,10 @@ def calc_velocity(fn, dt, fixed_res = None):
     dx[valid == 0] = np.nan
     dy[valid == 0] = np.nan
     
+    if medShift: 
+        dx = dx - np.nanmedian(dx)
+        dy = dy - np.nanmedian(dy)
+
     #calculate total offset (length of vector)
     v = np.sqrt((dx**2+dy**2))
     #convert to meter
@@ -71,6 +75,29 @@ def calc_velocity(fn, dt, fixed_res = None):
     direction = abs(subtract-direction)
     
     return v, direction
+
+
+def calc_velocity_L3B(matchfile, prefixext="L3B", overwrite = False): 
+    df = pd.read_csv(matchfile)
+    path,_ = os.path.split(matchfile)
+
+    df["id_ref"] = df.ref.apply(get_scene_id, level = 3)
+    df["id_sec"] = df.sec.apply(get_scene_id, level = 3)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+    
+    df["dt"]  = df.date_sec - df.date_ref
+    
+    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
+        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif"
+        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+        if os.path.isfile(disp):
+            if not os.path.isfile(disp[:-4]+"_velocity.tif") or overwrite: 
+                v, direction = calc_velocity(disp, row["dt"], medShift=True)
+
+                save_file([v], disp, outname = disp[:-4]+"_velocity.tif")
+        else:
+            print(f"Warning: Disparity file {disp} not found. Skipping velocity calculation...")
     
 def mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc, fixed_res = None, out_res = 3, epsg = "32720", ext = "mp", overwrite = False, velocity_only = False):
     df = pd.read_csv(matchfile)
@@ -162,6 +189,64 @@ def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True, angle
     return mean, p25, p75, std
 
 
+def get_variance(matchfile, aoi = None, inverse = False, level = 3,prefixext = "L3B"):
+    
+    df = pd.read_csv(matchfile)
+    path,_ = os.path.split(matchfile)
+
+    df["id_ref"] = df.ref.apply(get_scene_id, level = level)
+    df["id_sec"] = df.sec.apply(get_scene_id, level = level)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+    
+    if os.path.isfile("./temp.tif"):
+        os.remove("./temp.tif")
+        
+    varsdx = []
+    varsdy = []
+        
+    for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
+        fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
+        vardx = np.nan
+        vardy = np.nan
+        if os.path.isfile(fn):
+            
+            dx = read_file(fn,1)
+            dy = read_file(fn,2)
+            dmask = read_file(fn,3)
+            dx[dmask == 0] = np.nan
+            dy[dmask == 0] = np.nan
+            
+            if aoi is not None: 
+                if not os.path.isfile("./temp.tif"):
+                    #only calculating the mask once - all images should have the same extent
+                    #rasterize aoi to find the pixels inside
+                    extent = get_extent(fn)
+                    resolution = read_transform(fn)[0]
+                    #TODO: catch AOI having a different CRS that mapprojected rasters!
+                    cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                    if inverse: 
+                        cmd += " -i"
+                    subprocess.run(cmd, shell = True)
+    
+                mask = read_file("./temp.tif")
+                
+                dx[mask == 0] = np.nan
+                dy[mask == 0] = np.nan
+            
+            vardx = np.nanvar(dx)
+            vardy = np.nanvar(dx)
+
+        varsdx.append(vardx)
+        varsdy.append(vardy)
+        
+    df["var_dx"] = varsdx
+    df["var_dy"] = varsdy
+    
+    df.to_csv(matchfile[:-4]+"_offset_variance.csv", index = False)
+    
+    return df
+    
 def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 0, max_dt = 861, weigh_by_dt = True, take_velocity = True):
     
     assert aoi is not None or (xcoord is not None and ycoord is not None), "Please provide either an AOI (vector dataset) or x and y coordinates!"
@@ -393,9 +478,73 @@ def get_stats_for_allpairs(matchfile, take_velocity = True):
     out = pd.concat([df, out], axis = 1)
 
     out.to_csv(f"{path}/stats{ext}.csv", index = False)
+    
+    
+
+
+
+def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity"):
+    
+    df = pd.read_csv(matchfile)
+    path,fn = os.path.split(matchfile) #! Assumes that all files are stored in the directory of the matchfile. Might refine that in the future.
+    
+    df["id_ref"] = df.ref.apply(get_scene_id, level = 3)
+    df["id_sec"] = df.sec.apply(get_scene_id, level = 3)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+    df["dt"]  = df.date_sec - df.date_ref
+        
+    if what == "velocity": 
+        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F_velocity.tif"
+        array_list = [np.ma.masked_invalid(read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
+        
+    elif what == "dx":
+        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F.tif"
+        
+        array_list = [read_file(x,1) for x in df.filenames if os.path.isfile(x)]
+        mask_list = [read_file(x,3) for x in df.filenames if os.path.isfile(x)]
+
+        dt = [df["dt"][i].days for i in range(len(df)) if os.path.isfile(df.filenames[i])]
+        resolution = [read_transform(df.filenames[i])[0] for i in range(len(df)) if os.path.isfile(df.filenames[i])]
+        
+        for i in range(len(dt)):
+            #masking
+            masked = np.where(mask_list[i] == 1, array_list[i], np.nan)
+            #median shift 
+            med = np.nanmedian(masked)
+            masked = masked - med
+            #dx in m/yr
+            array_list[i] = np.ma.masked_invalid(((masked*resolution[i])/dt[i])*365)
+            
+
+    elif what == "dy":
+        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F.tif"
+        
+        array_list = [read_file(x,2) for x in df.filenames if os.path.isfile(x)]
+        mask_list = [read_file(x,3) for x in df.filenames if os.path.isfile(x)]
+
+        dt = [df["dt"][i].days for i in range(len(df)) if os.path.isfile(df.filenames[i])]
+        resolution = [read_transform(df.filenames[i])[0] for i in range(len(df)) if os.path.isfile(df.filenames[i])]
+
+        for i in range(len(dt)):
+            #masking
+            masked = np.where(mask_list[i] == 1, array_list[i], np.nan)
+            #median shift 
+            med = np.nanmedian(masked)
+            masked = masked - med
+            #dy in m/yr
+            array_list[i] = np.ma.masked_invalid(((masked*resolution[i])/dt[i])*365)
+
+    else:
+        print("No valid what option provided.")
+        return
+    
+    average_vals = np.ma.average(array_list, axis=0)
+    variance_vals = np.ma.var(array_list, axis = 0)
+    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}.tif"))
 
     
-        
+
 
 def stack_rasters(matchfile, take_velocity = True, max_dt = 861):
     df = pd.read_csv(matchfile)
@@ -479,36 +628,4 @@ def calculate_average_direction(average_fn):
     subtract[dx<0] = 360
     direction = abs(subtract-direction)
     save_file([direction], average_fn, os.path.join(path,"average_direction.tif"))
-
-def find_clusters(path):
-    #TODO: improve this!
-    path = "./Dove-C_Jujuy_all/L1B/"
-    vel = read_file(os.path.join(path, "average_velocity.tif"))
-    direct = read_file(os.path.join(path, "average_direction.tif"))
-    dx = read_file(os.path.join(path, "average_dx_dy.tif"), 1)
-    dy = read_file(os.path.join(path, "average_dx_dy.tif"), 2)
-
-    direct[np.isnan(direct)] = -9999
-    #x, y = np.meshgrid(np.arange(vel.shape[1]), np.arange(vel.shape[0]))
-    
-     #Stack the image data into a 2D array
-    data = np.column_stack((vel.flatten(), direct.flatten(), dx.flatten(), dy.flatten()))    
-    # Define the number of clusters and the spatial weight
-    K = 15
-    
-    kmeans = KMeans(n_clusters=K, random_state=0)
-    #weight = np.array([2,2,2,1,0.5, 0.5])
-    # introduce weights by multiplying data matrix by weight matrix
-    #weighted_data = data * weight[np.newaxis, :]
-    
-    # fit the weighted data to the k-means algorithm
-    clusters = kmeans.fit(data).labels_
-    
-    # reshape the cluster labels to match the original image shape
-    cluster_img = clusters.reshape(vel.shape)
-    ls = cluster_img
-    ls[ls!=1] = 0
-    # visualize the clustered image
-    plt.imshow(ls)
-    plt.show()
 
