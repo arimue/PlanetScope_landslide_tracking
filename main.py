@@ -29,11 +29,17 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 
 # 
 
-# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", cloud_cover_max=0.1, date_start = "2020-01-01", date_stop = "2023-03-31")
-# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
+gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", cloud_cover_max=0.1, date_start = "2022-09-01", date_stop = "2022-09-30")
+df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
 
-#gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2022-07-01", date_stop = "2022-08-31")
-#df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
+
+# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2022-07-01", date_stop = "2022-08-31")
+# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
+
+# matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+# scores = preprocessing.rate_match(df, matches)
+# scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv")
+
 #df_elements = df.sample(n=8)
 #matches = preprocessing.match_all(df_elements3, path = "./Siguas/L3B/")
 #matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
@@ -72,7 +78,7 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 
 #files = glob.glob("/home/ariane/Downloads/MinaPurna_PSBSD_moreUnstable_L1B_psscene_*/files/PSScene/*/*/*AnalyticMS.tif")
 
-# files = glob.glob("/home/ariane/Downloads/delMedio_*/files/*AnalyticMS_SR_clip.tif")
+# files = glob.glob("/home/ariane/Downloads/delMedio_Sept22*/files/*AnalyticMS_SR_clip.tif")
 # all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L3B/", bandNr = 2)
 
 # #all_files = glob.glob("./MinaPurna/L1B/*_b2.tif")

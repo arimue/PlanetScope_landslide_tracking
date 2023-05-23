@@ -5,7 +5,7 @@ Created on Mon Feb 27 17:54:21 2023
 
 @author: ariane
 """
-from helper_functions import read_file, impute, rasterValuesToPoint, clip_raw, get_scene_id
+from helper_functions import read_file, impute, rasterValuesToPoint, clip_raw, get_scene_id, copy_rpcs
 import numpy as np
 import matplotlib.pyplot as plt
 import asp_helper_functions as asp
@@ -21,6 +21,7 @@ from scipy.stats import linregress
 import shutil
 from plotting_functions import get_vlims
 import subprocess, os
+from osgeo import gdal
 
 def get_topo_info_grid(row, length, rpc, demname, approxElev = 4000):
     print(row)
@@ -540,3 +541,133 @@ def mp_correlate(fn_img1, fn_img2, demname, amespath, ul_lon = None, ul_lat = No
         plt.tight_layout()
         plt.savefig(path+"/"+prefix_mp+"_correlation.png", dpi = 300)
         plt.show()
+        
+        
+def find_tiepoints_SIFT(img1, img2, min_match_count = 100, plot = False):
+    image1 = cv.imread(img1)
+    image2 = cv.imread(img2)
+
+    # Convert the images to grayscale
+    gray1 = cv.cvtColor(image1, cv.COLOR_BGR2GRAY)
+    gray2 = cv.cvtColor(image2, cv.COLOR_BGR2GRAY)
+    
+    # Histogram stretching helps A LOT with tiepoint detection
+    gray1 = cv.equalizeHist(gray1)
+    gray2 = cv.equalizeHist(gray2)
+
+    # Find the key points and descriptors with SIFT
+
+    sift = cv.SIFT_create()
+    kp1, des1 = sift.detectAndCompute(gray1, None)
+    kp2, des2 = sift.detectAndCompute(gray2, None)
+
+    index_params = dict(algorithm=1, trees=5)
+    search_params = dict(checks=50)
+    flann = cv.FlannBasedMatcher(index_params, search_params)
+    matches = flann.knnMatch(des1, des2, k=2)
+
+    # Store all the good matches as per Lowe's ratio test.
+    good = []
+    for m, n in matches:
+        if m.distance < 0.7*n.distance:
+            good.append(m)
+
+    if len(good) > min_match_count:
+        src_pts = np.float32([kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+        dst_pts = np.float32([kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+
+        # Reduce dimension
+        src_pts = src_pts[:, 0, :]
+        dst_pts = dst_pts[:, 0, :]
+
+    df = pd.DataFrame({"x_img1": src_pts[:,0], "y_img1": src_pts[:,1], "x_img2": dst_pts[:,0], "y_img2": dst_pts[:,1]})
+    
+    if plot:
+        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+        ax[0].imshow(gray1, cmap="gray")
+        ax[0].scatter(df.x_img1, df.y_img1, c= "red", s = 0.1)
+        ax[0].set_title("Tiepoints Image 1")
+
+        ax[1].imshow(gray2, cmap="gray")
+        ax[1].scatter(df.x_img2, df.y_img2, c= "red", s = 0.1)
+        ax[1].set_title("Tiepoints Image 2")
+        plt.show()
+
+    
+    return df
+
+
+def improve_L1B_geolocation(img1, img2, demname, plot = False):
+    df = find_tiepoints_SIFT(img1, img2, plot = plot)
+    image2 = read_file(img2)
+
+    #localize SIFT features in object space using RPCs from img1
+    ds = gdal.Open(img1)
+    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
+    pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img1, df.y_img1)))
+    ds = tr = None
+    
+    #now project these points into the second image using RPCs from img2
+    
+    ds = gdal.Open(img2)
+    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
+    pts_img,_ = tr.TransformPoints(1, list(zip([p[0] for p in pts_obj],[p[1] for p in pts_obj])))
+    ds = tr = None
+    
+    df["x_img2_should"] = [p[0] for p in pts_img]
+    df["y_img2_should"] = [p[1] for p in pts_img]
+    #if ref DEM has holes, points can become inf
+    df = df[np.isfinite(df).all(1)]
+    
+    df["xdiff"] = df.x_img2 - df.x_img2_should
+    df["ydiff"] = df.y_img2 - df.y_img2_should
+    
+    #remove matches with really large distances
+    pxup = np.nanpercentile(df.xdiff, 99)
+    pyup = np.nanpercentile(df.ydiff, 99)
+    pxlow = np.nanpercentile(df.xdiff, 1)
+    pylow = np.nanpercentile(df.ydiff, 1)
+    
+    df = df.loc[df.xdiff >= pxlow]
+    df = df.loc[df.xdiff <= pxup]
+    df = df.loc[df.ydiff >= pylow]
+    df = df.loc[df.ydiff <= pyup]
+    df = df.reset_index(drop = True)
+    
+    
+    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY2, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
+    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY2, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
+    
+    # distx_fit = df.xdiff - polyXY2((df.x_img2,df.y_img2), *xcoeffs1) 
+    # disty_fit = df.ydiff - polyXY2((df.x_img2,df.y_img2), *xcoeffs2) 
+    
+    # x_img2_new = df.x_img2 - polyXY2((df.x_img2,df.y_img2), *xcoeffs1) 
+    # y_img2_new = df.y_img2 - polyXY2((df.x_img2,df.y_img2), *xcoeffs2) 
+    
+    xgrid, ygrid = np.meshgrid(np.arange(0,image2.shape[1], 1), np.arange(0, image2.shape[0], 1))
+    
+    dgx = polyXY2((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
+    dgy = polyXY2((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
+    
+    if plot:
+        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+        p1 = ax[0].imshow(dgx.reshape(xgrid.shape), cmap="magma")
+        ax[0].set_title("X fit")
+
+        p2 = ax[1].imshow(dgy.reshape(xgrid.shape), cmap="magma")
+        ax[1].set_title("Y fit")
+        fig.colorbar(p1, ax=ax[0])
+        fig.colorbar(p2, ax=ax[1])
+        plt.show()
+        
+    dgx = (xgrid+dgx.reshape(xgrid.shape)).astype(np.float32)
+    dgy = (ygrid +dgy.reshape(xgrid.shape)).astype(np.float32)
+    
+    image2_remap = cv.remap(image2, dgx, dgy, interpolation = cv.INTER_LINEAR)
+    cv.imwrite(img2[:-4]+"_remapped.tif", image2_remap)
+    
+    copy_rpcs(img2, img2[:-4]+"_remapped.tif")
+    
+    return img2[:-4]+"_remapped.tif"

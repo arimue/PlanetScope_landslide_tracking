@@ -167,17 +167,23 @@ def size_from_aoi(aoi, gsd = 4, epsg = 32720):
 
     return ul_lon, ul_lat, xsize, ysize
 
+def warp(img, epsg, res):
+    
+    cmd = f"gdalwarp -t_srs EPSG:{epsg} -tr {res} {res} -co COMPRESS=DEFLATE -r bilinear -co ZLEVEL=9 -co PREDICTOR=2 {img} {img[:-4]}_epsg{epsg}.tif"
+    subprocess.run(cmd, shell = True)
+    return f"{img[:-4]}_epsg{epsg}.tif"
+
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
-    rpc = rpc_from_geotiff(img)
-    x,y = rpc.projection([ul_lon], [ul_lat], rasterValuesToPoint([ul_lon], [ul_lat], demname))
+    # rpc = rpc_from_geotiff(img)
+    # x,y = rpc.projection([ul_lon], [ul_lat], rasterValuesToPoint([ul_lon], [ul_lat], demname))
   
-    # #alternative gdal
-    # ds = gdal.Open(img)
-    # #create transformer
-    # tr = gdal.Transformer(ds, None, ["METHOD=RPC"])
-    # _,pnt = tr.TransformPoint(1, ul_lon, ul_lat, rasterValuesToPoint([ul_lon], [ul_lat], demname)[0])
-    # ds = tr = None
-    cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -srcwin {x[0]} {y[0]} {xsize} {ysize} {img} {img[:-4]}_clip.tif"
+    #alternative gdal
+    ds = gdal.Open(img)
+    #create transformer
+    tr = gdal.Transformer(ds, None, ["METHOD=RPC",f"RPC_DEM={demname}"])
+    _,pnt = tr.TransformPoint(1, ul_lon, ul_lat)
+    ds = tr = None
+    cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -srcwin {pnt[0]} {pnt[1]} {xsize} {ysize} {img} {img[:-4]}_clip.tif"
     result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
     if result.stderr != "":
         print(result.stderr)

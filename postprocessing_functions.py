@@ -235,7 +235,7 @@ def get_variance(matchfile, aoi = None, inverse = False, level = 3,prefixext = "
                 dy[mask == 0] = np.nan
             
             vardx = np.nanvar(dx)
-            vardy = np.nanvar(dx)
+            vardy = np.nanvar(dy)
 
         varsdx.append(vardx)
         varsdy.append(vardy)
