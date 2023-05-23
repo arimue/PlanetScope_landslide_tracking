@@ -29,7 +29,7 @@ img2 = helper.clip_raw(img2, ul_lon, ul_lat, xsize+400, ysize+500, refdem)
 
 for refdem in [path +"/DEMdata/output_AW3D30_epsg32720_NASADEMaligned.tif", path +"/DEMdata/output_COP30_epsg32720_NASADEMaligned.tif",path +"/DEMdata/output_NASADEM_epsg32720.tif", "./DEMdata/run-DEM_NASADEMaligned.tif"]:
 
-    img2r = core.improve_L1B_geolocation(img1, img2, refdem)
+    img2r = core.improve_L1B_geolocation(img1, img2, refdem, order = 3)
     
     mp1 = asp.mapproject(amespath, img1, refdem)
     mp2 = asp.mapproject(amespath, img2r, refdem)
@@ -41,7 +41,7 @@ for refdem in [path +"/DEMdata/output_AW3D30_epsg32720_NASADEMaligned.tif", path
     id2 = helper.get_scene_id(img2)
     
     _,demfn = os.path.split(refdem)
-    prefix = f"{id1}_{id2}_remapped_{demfn[:-4]}"
+    prefix = f"{id1}_{id2}_remapped_3rdorder_{demfn[:-4]}"
     stereopath = asp.correlate_asp(amespath, mp1, mp2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
     asp.clean_asp_files(stereopath, prefix)
     

@@ -116,43 +116,6 @@ def refine_search_and_convert_to_csv(searchfile, refPoly, instrument = "PS2", or
     print(f"Found {len(features)} scenes covering min. {minOverlap}% of the given AOI.")
     return df
     
-def suggest_reference_and_stable_pair(df, angle_lim_ref = 0.1, angle_lim_stable = 4.5, max_day_diff= 30):
-    
-    #find a potential reference scene (low view angle) and corresponding stable pairs that preferrable have a high view angle difference
-    #to better depict topography based on the result from refine_search_and_convert_to_csv
-    #make sure to visually check images in the Planet Explorer to make sure the AOI is free of clouds
-    
-    pot_ref = df[(df.angle <= angle_lim_ref) & (df.quality == "standard")].reset_index(drop = True)
-    pot_stable = df[df.angle >= angle_lim_stable]    
-    pot_ref["matches"] = 0
-    for index, row in pot_ref.iterrows():
-        date_diff = abs(pot_stable["date"] - row["date"])
-        date_diff = date_diff[date_diff <= datetime.timedelta(max_day_diff)]
-        pot_ref["matches"][index] = len(date_diff)
-    
-    best_ref = pot_ref[pot_ref.matches == np.max(pot_ref.matches)].reset_index(drop = True)
-    print("I can recommend the following scenes as reference scenes:")
-    for index, row in best_ref.iterrows():
-        print(f"{index}: {row.ids} – {row.matches} potential matches")
-    
-    if len(best_ref) > 1:
-        choice = input(f"Please select which reference scene to choose {list(range(len(best_ref)))}\n")
-        best_ref = best_ref.iloc[int(choice)]
-        
-        print("Returning a dataframe with the selected reference scene and corresponding stable pairs...")
-        best_ref = (pd.DataFrame(best_ref.drop("matches")).T).reset_index(drop = True)
-    else: 
-        best_ref = best_ref.drop(["matches"], axis = 1)
-    
-    best_ref["type"] = "reference"
-    date_diff = abs(pot_stable["date"] - best_ref["date"][0])
-    date_diff = date_diff[date_diff <= datetime.timedelta(max_day_diff)]
-    
-    best_stable = pot_stable.loc[date_diff.index]
-    best_stable["type"] = "stable pair"
-    
-    return pd.concat([best_ref, best_stable], axis = 0).reset_index(drop = True)
-
 def download_xml_metadata(ids, out_dir = None):
     
     if out_dir is None:

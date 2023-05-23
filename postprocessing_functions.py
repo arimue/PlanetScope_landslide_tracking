@@ -99,44 +99,6 @@ def calc_velocity_L3B(matchfile, prefixext="L3B", overwrite = False):
         else:
             print(f"Warning: Disparity file {disp} not found. Skipping velocity calculation...")
     
-def mapproject_and_calc_velocity(amespath, matchfile, dem, img_with_rpc, fixed_res = None, out_res = 3, epsg = "32720", ext = "mp", overwrite = False, velocity_only = False):
-    df = pd.read_csv(matchfile)
-    #df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
-
-    #df = df.iloc[200:, :]
-    path,_ = os.path.split(matchfile)
-
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
-    
-    df["dt"]  = df.date_sec - df.date_ref
-
-    #extract statistics from disparity files
-    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F.tif"
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
-        if os.path.isfile(disp):
-            if not os.path.isfile(disp[:-4]+"_imgspace_velocity.tif") or overwrite: 
-                v, direction = calc_velocity(disp, row["dt"], fixed_res = fixed_res)
-                cv2.imwrite(disp[:-4]+"_imgspace_velocity.tif", v)
-                #TODO: when using mapprojected data, cannot use cv imwrite
-                #save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
-            else:
-                print("Velocity file exists. Skipping velocity calculation...")
-
-            if not velocity_only:
-                #mapproject
-                if not os.path.isfile(f"{disp[:-4]}_imgspace_velocity_{ext}.tif") or overwrite:
-                    #if the mapprojected result doesnt show in QGIS, make sure to remove Band 4 as the alpha band from the transparency settings
-                    output = asp.mapproject(amespath, disp[:-4]+"_imgspace_velocity.tif", dem, img_with_rpc, ext = ext, resolution = out_res, epsg = epsg)       
-                else:
-                    print("Mapprojected disparity exists. Skipping mapprojection...")
-
-        else:
-            print(f"Warning! Disparity file {disp} not found.")
-
 
 def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None, take_velocity = True, angles = False):
     r[r==-9999] = np.nan
@@ -606,26 +568,4 @@ def stack_rasters(matchfile, take_velocity = True, max_dt = 861):
         
         pot_ref = [file for file in df.filenames if os.path.isfile(file)]
         save_file([average_dx, average_dy], pot_ref[0], os.path.join(path,"average_dx_dy.tif"))
-
-
-def calculate_average_direction(average_fn):
-    path,_ = os.path.split(average_fn)
-    dx = read_file(average_fn, 1)
-    dy = read_file(average_fn, 2)
-    #calculate angle to north
-    north = np.array([0,1])
-    #stack x and y offset to have a 3d array with vectors along axis 2
-    vector_2 = np.dstack((dx,dy))
-    unit_vector_1 = north / np.linalg.norm(north)
-    unit_vector_2 = vector_2 / np.linalg.norm(vector_2, axis = 2, keepdims = True)
-    #here np.tensordot is needed (instead of np.dot) because of the multiple dimensions of the input arrays
-    dot_product = np.tensordot(unit_vector_1,unit_vector_2, axes=([0],[2]))
-
-    direction = np.rad2deg(np.arccos(dot_product))
-    
-    #as always the smallest angle to north is given, values need to be substracted from 360 if x is negative
-    subtract = np.zeros(dx.shape)
-    subtract[dx<0] = 360
-    direction = abs(subtract-direction)
-    save_file([direction], average_fn, os.path.join(path,"average_direction.tif"))
 

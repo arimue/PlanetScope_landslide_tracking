@@ -10,7 +10,6 @@ import numpy as np
 from osgeo import gdal, gdalconst
 import pandas as pd
 from scipy.ndimage import label, binary_dilation
-from rpcm.rpc_model import rpc_from_geotiff
 from pyproj import Transformer, CRS
 
 def list_files(dir, pattern):
@@ -73,7 +72,7 @@ def save_file(bands, ref, outname, out_dir= ""):
             dst.write(band.astype(rasterio.float32), i+1)
         
     print(f"I have written {outname}!")
-    
+        
 def rasterValuesToPoint(xcoords, ycoords, rastername):
     coords = [(x,y) for x, y in zip(xcoords,ycoords)]
     with rasterio.open(rastername) as src:
@@ -108,23 +107,6 @@ def fixed_val_scaler(x, xmin, xmax):
     return (x-xmin)/(xmax-xmin)
 
     
-def impute(arr, max_fillsize = 1000):
-    #fill holes in disparity raster with mean of surroundings
-    #after https://stackoverflow.com/questions/41550979/fill-holes-with-majority-of-surrounding-values-python
-    imputed_array = np.copy(arr)
-
-    mask = np.isnan(arr)
-    labels, count = label(mask) #label holes individually
-    
-    for idx in range(1, count + 1):
-        hole = labels == idx #select current hole
-        if hole.sum() <= max_fillsize: #make sure to not fill the borders. These can be filtered as they include a large number of nan values
-            surrounding_values = arr[binary_dilation(hole) & ~hole] #enlarge hole with dilation to get surroundings (those who are pixels in padded but not actual hole)
-            #fill with mean of surroundings
-            imputed_array[hole] = np.nanmean(surrounding_values)
-
-    return imputed_array
-
 def size_from_aoi(aoi, gsd = 4, epsg = 32720):
     
     #gets approximate dimensions for clipping raw data from aoi
@@ -174,10 +156,7 @@ def warp(img, epsg, res):
     return f"{img[:-4]}_epsg{epsg}.tif"
 
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
-    # rpc = rpc_from_geotiff(img)
-    # x,y = rpc.projection([ul_lon], [ul_lat], rasterValuesToPoint([ul_lon], [ul_lat], demname))
-  
-    #alternative gdal
+
     ds = gdal.Open(img)
     #create transformer
     tr = gdal.Transformer(ds, None, ["METHOD=RPC",f"RPC_DEM={demname}"])
