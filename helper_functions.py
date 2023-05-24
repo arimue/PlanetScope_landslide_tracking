@@ -74,16 +74,23 @@ def save_file(bands, ref, outname, out_dir= ""):
     print(f"I have written {outname}!")
         
 def rasterValuesToPoint(xcoords, ycoords, rastername):
+    #replace infinite values with 0. They will fall outside of the DEM and will be assigned the nodata value. 
+    xcoords = np.array(xcoords)
+    ycoords = np.array(ycoords)
+    xcoords[~np.isfinite(xcoords)] = 0
+    ycoords[~np.isfinite(ycoords)] = 0
+
     coords = [(x,y) for x, y in zip(xcoords,ycoords)]
     with rasterio.open(rastername) as src:
         meta = src.meta
         
     epsg = int(meta["crs"]['init'].lstrip('epsg:'))
-    if epsg != 4326:
-        print("Reprojecting raster to EPSG 4326 ...")
-        cmd = f"gdalwarp -t_srs epsg:4326 -r bilinear -overwrite -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 {rastername} {rastername[:-4]}_epsg4326.tif"
-        subprocess.run(cmd, shell = True)
-        rastername = f"{rastername[:-4]}_epsg4326.tif"
+    #TODO: implement check for EPSG but do not automatically reproject everything to 4326
+    # if epsg != 4326:
+    #     print("Reprojecting raster to EPSG 4326 ...")
+    #     cmd = f"gdalwarp -t_srs epsg:4326 -r bilinear -overwrite -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 {rastername} {rastername[:-4]}_epsg4326.tif"
+    #     subprocess.run(cmd, shell = True)
+    #     rastername = f"{rastername[:-4]}_epsg4326.tif"
 
     src = rasterio.open(rastername)
     
@@ -108,7 +115,7 @@ def fixed_val_scaler(x, xmin, xmax):
 
     
 def size_from_aoi(aoi, gsd = 4, epsg = 32720):
-    
+    #TODO: need to check that DEM is in epsg:4326
     #gets approximate dimensions for clipping raw data from aoi
     #AOI has to be a rectangle 
     with open(aoi) as f:
@@ -153,7 +160,8 @@ def warp(img, epsg, res):
     
     cmd = f"gdalwarp -t_srs EPSG:{epsg} -tr {res} {res} -co COMPRESS=DEFLATE -r bilinear -co ZLEVEL=9 -co PREDICTOR=2 {img} {img[:-4]}_epsg{epsg}.tif"
     subprocess.run(cmd, shell = True)
-    return f"{img[:-4]}_epsg{epsg}.tif"
+    return f"{img[:-4]}_epsg{epsg}_res{res}.tif"
+
 
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
 

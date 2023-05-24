@@ -8,6 +8,7 @@ Created on Fri Mar  3 15:23:13 2023
 
 import glob, subprocess, os, shutil
 from helper_functions import clip_raw, size_from_aoi, clip_mp_cutline
+import pandas as pd
 
 def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode = 1, method = "asp_bm", nodata_value = None, corr_kernel = 25):
     
@@ -129,3 +130,45 @@ def dem_pipeline(amespath, demcoregpath, img1, img2, refdem, aoi = None, epsg = 
 
 
     print("Done!")
+    
+    
+def image_align_asp(amespath, img1, img2, prefix = None):
+    
+    #run ASP image_align with disparity derived from running the correlation
+    
+    folder = img1.replace(img1.split("/")[-1], "")
+    print(f"Data will be saved under {folder}image_align/")
+    if prefix: 
+        cmd = f"{amespath}image_align {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine --disparity-params '{folder}stereo/{prefix}-F.tif 10000' --inlier-threshold 100" 
+    else:
+        cmd = f"{amespath}image_align {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine  --inlier-threshold 100" 
+
+    subprocess.run(cmd, shell = True)
+
+def parse_match_asp(amespath, img1, img2, prefix = "run"):
+    
+    #turn a .match file (output from image_align) into readable .txt format 
+    
+    folder = img1.replace(img1.split("/")[-1], "")+"image_align/"
+    matchfile = glob.glob(f"{folder}{prefix}-*-clean.match")
+    if len(matchfile)>1:
+        print("More that one matching file found. Please check if prefixes were used more that once...")
+        return
+    matchfile = matchfile[0]
+    cmd = f"python {amespath}parse_match_file.py {matchfile} {matchfile[:-6]}.txt"
+    subprocess.run(cmd, shell = True)
+    return f"{matchfile[:-6]}.txt"
+
+def read_match(matchfile):
+    
+    #convert a match.txt file to better readable df 
+    
+    df = pd.read_csv(matchfile, skiprows = 1, header = None, sep = " ")
+    nrIPs = pd.read_csv(matchfile, nrows = 1, header = None, sep = " ")
+
+    df1 = df.head(nrIPs[0][0]).reset_index(drop = True)
+    df2 = df.tail(nrIPs[1][0]).reset_index(drop = True)
+
+    df = pd.DataFrame({"x_img1":df1[0], "y_img1":df1[1],"x_img2":df2[0], "y_img2":df2[1]})
+    
+    return df
