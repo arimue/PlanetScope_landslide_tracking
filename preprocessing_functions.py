@@ -12,6 +12,8 @@ import planet_search_functions as search
 from helper_functions import get_date, get_scene_id, fixed_val_scaler, read_file
 import numpy as np
 from tqdm import tqdm
+from pyproj import Transformer, CRS
+
 
 def isolateBand(img, bandNr=2):
     out_dir, img_fn = os.path.split(img)
@@ -33,6 +35,29 @@ def preprocess_scenes(files, outpath = "./", bandNr = 2):
     print("Isolated bands can now be found in " + outpath)
     
     return out
+
+def shortest_distance_to_line(point, line_start, line_end):
+    #see https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points
+    point = np.array(point)
+    line_start = np.array(line_start)
+    line_end = np.array(line_end)
+
+    # Calculate shortest distance
+    shortest_distance = np.cross(point - line_start, line_end - line_start) / np.linalg.norm(line_end - line_start)
+
+    return shortest_distance
+
+def get_poi_ydistance(scene, poi, epsg):
+    #TODO: implement epsg guesser and check in which CRS POI coords are given
+    #transform to UTM to have differences in m
+    proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
+    poi_proj = proj_tr.transform(*poi)
+    upt1_proj = proj_tr.transform(*scene.upper_pt1)
+    upt2_proj = proj_tr.transform(*scene.upper_pt2)
+
+    dist_to_upper_line = shortest_distance_to_line(poi_proj, upt1_proj, upt2_proj)
+    
+    return dist_to_upper_line
 
 def find_best_matches(df, minGroupSize = 10, mindt = 1):
     pd.options.mode.chained_assignment = None 
@@ -83,7 +108,7 @@ def find_best_matches(df, minGroupSize = 10, mindt = 1):
 
     return groups
 
-def rate_match(infodf, matchdf, level = 3):
+def rate_match(infodf, matchdf, poi, epsg, level = 3):
     #rate existing matches, do not suggest
     #sort by reference if not already to be able to calculate scores in batches
     matchdf = matchdf.sort_values("ref").reset_index(drop = True)
@@ -102,11 +127,16 @@ def rate_match(infodf, matchdf, level = 3):
         sat_az_diff_scaled = fixed_val_scaler(sat_az_diff, 0,180)
         score =  (sum_va_scaled * sat_az_diff_scaled + diff_va_scaled )
         
+        refinfo["ydiff"] = refinfo.apply(lambda row: get_poi_ydistance(row, poi=poi, epsg=epsg), axis=1)  
+        secinfo["ydiff"] = secinfo.apply(lambda row: get_poi_ydistance(row, poi=poi, epsg=epsg), axis=1)   
+        
+        ydiff = abs(refinfo.ydiff.iloc[0] - secinfo.ydiff)
         scores.append({
             "refid": refid,
             "secid": secinfo.ids, 
-            "score": score})
-    scores = pd.DataFrame.from_records(scores).explode(["secid","score"]).reset_index(drop = True)
+            "score": score, 
+            "poi_ydiff": ydiff})
+    scores = pd.DataFrame.from_records(scores).explode(["secid","score", "poi_ydiff"]).reset_index(drop = True)
     return(scores)
 
 def add_offset_variance_to_rated_matches(scores, stereopath, prefix_ext = "L3B"):

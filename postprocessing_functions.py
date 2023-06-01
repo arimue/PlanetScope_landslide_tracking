@@ -136,7 +136,7 @@ def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True, angle
     try:    
         sample = r[mask == 1]
     except IndexError:
-        print(f"There seems to be a problem with your input scene. Likely the dimensions do not fit the rest of the data. Have you altered your x/ysize or coordinates of the upper left corner when correlating scenes?")
+        print("There seems to be a problem with your input scene. Likely the dimensions do not fit the rest of the data. Have you altered your x/ysize or coordinates of the upper left corner when correlating scenes?")
         return np.nan, np.nan, np.nan, np.nan
     if angles: #calculate circular mean for direction
         mean = np.rad2deg(circmean(np.deg2rad(sample)))
@@ -151,7 +151,139 @@ def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True, angle
     return mean, p25, p75, std
 
 
-def get_variance(matchfile, aoi = None, inverse = False, level = 3,prefixext = "L3B"):
+def compare_surroundings_to_aoi(matchfile, aoi, level = 3, prefixext = "L3B"):
+    
+    df = pd.read_csv(matchfile)
+    path,_ = os.path.split(matchfile)
+
+    df["id_ref"] = df.ref.apply(get_scene_id, level = level)
+    df["id_sec"] = df.sec.apply(get_scene_id, level = level)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+    
+    if os.path.isfile("./temp.tif"):
+        os.remove("./temp.tif")
+        
+    diffsdx = []
+    diffsdy = []
+        
+    for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
+        fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
+        diffdx = np.nan
+        diffdy = np.nan
+        
+        if os.path.isfile(fn):
+            
+            dx = read_file(fn,1)
+            dy = read_file(fn,2)
+            dmask = read_file(fn,3)
+            dx[dmask == 0] = np.nan
+            dy[dmask == 0] = np.nan
+            
+            if not os.path.isfile("./temp.tif"):
+                #only calculating the mask once - all images should have the same extent
+                #rasterize aoi to find the pixels inside
+                extent = get_extent(fn)
+                resolution = read_transform(fn)[0]
+                #TODO: catch AOI having a different CRS that mapprojected rasters!
+                cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                subprocess.run(cmd, shell = True)
+
+            mask = read_file("./temp.tif")
+              
+            dx_aoi = dx.copy()
+            dy_aoi = dy.copy()
+            
+            dx_aoi[mask == 0] = np.nan
+            dy_aoi[mask == 0] = np.nan
+            
+            mdx_aoi = np.nanmean(dx_aoi)
+            mdy_aoi = np.nanmean(dy_aoi)
+            
+            diffdx = abs(mdx_aoi)-abs(np.nanmean(dx))
+            diffdy = abs(mdy_aoi)-abs(np.nanmean(dy))
+
+        diffsdx.append(diffdx)
+        diffsdy.append(diffdy)
+        
+    df["diff_dx"] = diffsdx
+    df["diff_dy"] = diffsdy
+    
+    
+    df.to_csv(matchfile[:-4]+"_offset_aoi_diff.csv", index = False)
+    
+    return df
+
+def compare_two_aois(matchfile, aoi, level = 3, prefixext = "L3B"):
+    #aoi should have two polygons with an attribute field called "id" containing the values 1 and 2
+    df = pd.read_csv(matchfile)
+    path,_ = os.path.split(matchfile)
+
+    df["id_ref"] = df.ref.apply(get_scene_id, level = level)
+    df["id_sec"] = df.sec.apply(get_scene_id, level = level)
+    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_sec"] = df.id_sec.apply(get_date)
+    
+    if os.path.isfile("./temp.tif"):
+        os.remove("./temp.tif")
+        
+    diffsdx = []
+    diffsdy = []
+        
+    for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
+        fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
+        diffdx = np.nan
+        diffdy = np.nan
+        
+        if os.path.isfile(fn):
+            
+            dx = read_file(fn,1)
+            dy = read_file(fn,2)
+            dmask = read_file(fn,3)
+            dx[dmask == 0] = np.nan
+            dy[dmask == 0] = np.nan
+            
+            if not os.path.isfile("./temp.tif"):
+                #only calculating the mask once - all images should have the same extent
+                #rasterize aoi to find the pixels inside
+                extent = get_extent(fn)
+                resolution = read_transform(fn)[0]
+                #TODO: catch AOI having a different CRS that mapprojected rasters!
+                cmd = f"gdal_rasterize -tr {resolution} {resolution} -a id -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                subprocess.run(cmd, shell = True)
+
+            mask = read_file("./temp.tif")
+              
+            dx_aoi1 = dx.copy()
+            dy_aoi1 = dy.copy()
+            
+            dx_aoi1[mask != 1] = np.nan
+            dy_aoi1[mask != 1] = np.nan
+            
+            dx_aoi2 = dx.copy()
+            dy_aoi2 = dy.copy()
+            
+            dx_aoi2[mask != 2] = np.nan
+            dy_aoi2[mask != 2] = np.nan
+            
+            
+            diffdx = np.nanmean(dx_aoi2) - np.nanmean(dx_aoi1)
+            diffdy = np.nanmean(dy_aoi2) - np.nanmean(dy_aoi1)
+            
+        diffsdx.append(diffdx)
+        diffsdy.append(diffdy)
+        
+    df["diff_dx"] = diffsdx
+    df["diff_dy"] = diffsdy
+    
+    
+    df.to_csv(matchfile[:-4]+"_offset_two_aois_compared.csv", index = False)
+    
+    return df
+
+
+
+def get_variance(matchfile, aoi = None, inverse = False, level = 3, prefixext = "L3B"):
     
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
@@ -166,7 +298,7 @@ def get_variance(matchfile, aoi = None, inverse = False, level = 3,prefixext = "
         
     varsdx = []
     varsdy = []
-        
+    
     for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
         fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
         vardx = np.nan
@@ -209,6 +341,7 @@ def get_variance(matchfile, aoi = None, inverse = False, level = 3,prefixext = "
     
     return df
     
+
 def generate_timeline(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 0, max_dt = 861, weigh_by_dt = True, take_velocity = True):
     
     assert aoi is not None or (xcoord is not None and ycoord is not None), "Please provide either an AOI (vector dataset) or x and y coordinates!"

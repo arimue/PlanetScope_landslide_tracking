@@ -115,8 +115,7 @@ def fixed_val_scaler(x, xmin, xmax):
 
     
 def size_from_aoi(aoi, gsd = 4, epsg = 32720):
-    #TODO: need to check that DEM is in epsg:4326
-    #gets approximate dimensions for clipping raw data from aoi
+
     #AOI has to be a rectangle 
     with open(aoi) as f:
          gj = json.load(f)
@@ -156,15 +155,27 @@ def size_from_aoi(aoi, gsd = 4, epsg = 32720):
 
     return ul_lon, ul_lat, xsize, ysize
 
-def warp(img, epsg, res):
+def warp(img, epsg, res = None):
     
-    cmd = f"gdalwarp -t_srs EPSG:{epsg} -tr {res} {res} -co COMPRESS=DEFLATE -r bilinear -co ZLEVEL=9 -co PREDICTOR=2 {img} {img[:-4]}_epsg{epsg}.tif"
+    if res is not None: 
+        outname = "{img[:-4]}_epsg{epsg}_res{res}.tif"
+        cmd = f"gdalwarp -t_srs EPSG:{epsg} -tr {res} {res} -co COMPRESS=DEFLATE -r bilinear -overwrite -co ZLEVEL=9 -co PREDICTOR=2 {img} {outname}"
+    else: #let gdal guess resolution
+        outname = f"{img[:-4]}_epsg{epsg}.tif"
+        cmd = f"gdalwarp -t_srs EPSG:{epsg} -co COMPRESS=DEFLATE -r bilinear -overwrite -co ZLEVEL=9 -co PREDICTOR=2 {img} {outname}"
     subprocess.run(cmd, shell = True)
-    return f"{img[:-4]}_epsg{epsg}_res{res}.tif"
+    return outname
 
 
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
-
+    #gets approximate dimensions for clipping raw data from aoi
+    #check that CRS = epsg:4326 otherwise the RPC projection will result in wrong estimages
+    epsg = get_epsg(demname)
+    
+    if epsg != 4326:
+        print("Reprojecting the given DEM to geographic CRS...")
+        demname = warp(demname, epsg = 4326)
+    
     ds = gdal.Open(img)
     #create transformer
     tr = gdal.Transformer(ds, None, ["METHOD=RPC",f"RPC_DEM={demname}"])

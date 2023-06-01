@@ -461,12 +461,23 @@ def opt_ypos_o2_z(params, east_img1, north_img1,elev_img2, x_img2, y_img2, tr, p
     
 def improve_L1B_geolocation(amespath, img1, img2, demname, epsg = 32720, order = 2, plot = False, add_elev = True):
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
-    # prefix = f"{id1}_{id2}_L1B"
-    # stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
-    # asp.clean_asp_files(stereopath, prefix)
+    
     id1 = get_scene_id(img1)
     id2 = get_scene_id(img2)
 
+    prefix = f"{id1}_{id2}_L1B"
+    path, _ = os.path.split(img1)
+    
+    if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
+        #TODO: allow adjustment of ames parameters
+        print("Generating L1B disparity map to find tiepoints across entire scene...")
+
+        stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
+        asp.clean_asp_files(stereopath, prefix)
+        
+    else:
+        print("Disparity file exists. Loading existing file to find tiepoints...")
+        
     asp.image_align_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
     txt = asp.parse_match_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
     df = asp.read_match(txt)
@@ -478,9 +489,6 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg = 32720, order =
     tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
     pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img1, df.y_img1)))
     ds = tr = None
-    
-    # df["lon_img1"] = [p[0] for p in pts_obj]
-    # df["lat_img1"] = [p[1] for p in pts_obj]
     
     #transform to UTM to have differences in m
     proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
@@ -535,7 +543,7 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg = 32720, order =
             print("Loading existing zgrid...")
             zgrid = np.load(f"{img2[:-4]}_zgrid.npy")         
 
-    
+    print("Adjusting secondary image...")    
     if order == 1:
         if add_elev: 
             #extracting z position using initial RPCs to stay consistent with zgrid generation, slight offsets should not be a problem at 30 m res

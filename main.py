@@ -29,20 +29,20 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 
 # 
 
-gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", cloud_cover_max=0.1, date_start = "2022-09-01", date_stop = "2022-09-30")
-df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
+# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", cloud_cover_max=0.1, date_start = "2022-09-01", date_stop = "2022-09-30")
+# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
 
 
 # gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2022-07-01", date_stop = "2022-08-31")
 # df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
 
 # matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
-# scores = preprocessing.rate_match(df, matches)
-# scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv")
 
 #df_elements = df.sample(n=8)
-#matches = preprocessing.match_all(df_elements3, path = "./Siguas/L3B/")
-#matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+#matches = preprocessing.match_all(df_elements, path = "./Siguas/L3B/")
+# matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+# scores = preprocessing.rate_match(df, matches, poi = (-72.156597, -16.36967), epsg = 32718)
+# scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv")
 
 #groups = preprocessing.find_best_matches(df, mindt = 30, minGroupSize = 5)
 # groups = groups.loc[groups.group_id.isin([6])].reset_index(drop = True)
@@ -51,7 +51,7 @@ df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documen
 # groups = groups.loc[groups.ids.isin(ids)].reset_index(drop = True)
 # groups.to_csv("/home/ariane/Documents/PlanetScope/delMedio/L3B/groupinfo.csv", index = False)
 
-# files = glob.glob("/home/ariane/Documents/PlanetScope/SD_Jujuy_5deg/*_b2.tif")
+# files = glob.glob("/home/ariane/Documents/PlanetScope/SD_Jujuy_all/*_b2.tif")
 # ids = [get_scene_id(f,level = 1) for f in files]
 # groups = df.loc[df.ids.isin(ids)].reset_index(drop = True)
 # groups.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/randomPairs/sceneinfo.csv", index = False)
@@ -160,11 +160,10 @@ ysize = 3300
 ###################################################
 
 matchfile = "./Siguas/L3B/matches_stable.csv"
-aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
+#aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
+aoi = "./Siguas/siguas_source_and_dep_area.geojson"
 
-out = postprocessing.get_variance(matchfile, aoi = aoi, inverse = True)
-
-
+out = postprocessing.compare_two_aois(matchfile, aoi, level = 3, prefixext = "L3B")
 
 
 
@@ -183,8 +182,8 @@ out = postprocessing.get_variance(matchfile, aoi = aoi, inverse = True)
 
 # preprocess downloaded scenes (isolate green band)
 # get a list of all downloaded scenes
-# files = glob.glob("/home/ariane/Downloads/Dove_C_rainyseason*/files/PSScene/*/basic_analytic_udm2/*AnalyticMS.tif")
-# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/Dove-C_Jujuy_all/L1B/", bandNr = 2)
+# files = glob.glob("/home/ariane/Downloads/Siguas_DEM*/files/PSScene/*/basic_analytic_udm2/*AnalyticMS.tif")
+# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/DEMgen/Siguas/", bandNr = 2)
 # all_files = glob.glob("./Dove-C_Jujuy_all/L1B/*_b2.tif")
 # reference = "./Dove-C_Jujuy_all/L1B/20190626_140959_103c_1B_Analytic_b2.tif"
 # df = preprocessing.generate_matchfile(all_files, reference, checkOverlap = False, refPoly = "/home/ariane/Documents/PlanetScope/polygon_DoveC.geojson", minOverlap = 95)
@@ -285,3 +284,26 @@ out = postprocessing.get_variance(matchfile, aoi = aoi, inverse = True)
 #postprocessing.generate_timeline(matchfile, aoi = aoi, take_velocity = True)
 # postprocessing.stack_rasters(matchfile, take_velocity=False)
 # postprocessing.calculate_average_direction(path+"average_dx_dy_mp.tif")
+
+
+
+#########################DEM generation#####################################
+# aoi = './DEMgen/siguas_dem_aoi.geojson'
+# #img1 = "./DEMgen/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"            
+# #img2 = "./DEMgen/20220916_141026_69_2461_1B_AnalyticMS_b2.tif" 
+# #img2 = "./DEMgen/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"  
+# #img2 = "./DEMgen/20220908_141037_39_2479_1B_AnalyticMS_b2.tif"
+
+# img1 = "./DEMgen/Siguas/20220702_145351_89_240c_1B_AnalyticMS_b2.tif"
+# img2 = "./DEMgen/Siguas/20220706_144107_59_24a3_1B_AnalyticMS_b2.tif"
+# # #amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
+# amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
+# id1 = get_scene_id(img1)
+# id2 = get_scene_id(img2)
+
+# epsg = 32720      
+# prefix = f"{id1}_{id2}"
+# refdem = "./DEMdata/siguas_COP30_wgs.tif"
+# demcoregpath = "/raid-manaslu/amueting/PhD/Project1/demcoreg/demcoreg/"
+# #potentially need to install pygeotools pip install pygeotools https://github.com/dshean/pygeotools for demcoreg to work
+# asp.dem_pipeline(amespath, demcoregpath, img1, img2, refdem, aoi = aoi, epsg = 32720, overwrite = True)

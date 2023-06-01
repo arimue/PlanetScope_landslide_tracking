@@ -32,6 +32,7 @@ def check_overlap(features, refPoly, minOverlap = 99):
 
     return list(itertools.compress(features, keep))
    
+    
 def get_orbit(features, direction = "NE"):
     #for some reason, I am not able to filter by orbit given the feature properties from planet
     #thus I am naively finding the angle to north and sort accordingly
@@ -55,6 +56,19 @@ def get_orbit(features, direction = "NE"):
             keep[i] = True
 
     return list(itertools.compress(features, keep))
+
+
+def get_upper_line_coords(feat, latpos):
+    geom = feat["geometry"]["coordinates"][0][0:-1] #remove last entry as it is the same as the first to close the poly
+
+    lon = np.array([c[0] for c in geom])
+    lat = np.array([c[1] for c in geom])
+    #works as long as the azimuth angle is not too high
+    up = np.argsort(lat)[::-1]
+
+    pt = (lon[up[latpos]], lat[up[latpos]])
+    
+    return pt
 
 
 def search_planet_catalog(instrument, geom = None, ids = None, date_start = "2010-01-01", date_stop = "2040-01-01", view_ang_min = 0, view_ang_max = 20, cloud_cover_max = 1, path = "./"):
@@ -97,7 +111,7 @@ def refine_search_and_convert_to_csv(searchfile, refPoly, instrument = "PS2", or
     features = check_overlap(features, refPoly = refPoly, minOverlap = minOverlap)
     
     df = pd.DataFrame({"ids":[f["id"] for f in features], "view_angle":[f["properties"]["view_angle"] for f in features], "gsd":[f["properties"]["gsd"] for f in features],"sat_az":[f["properties"]["satellite_azimuth"] for f in features],"quality":[f["properties"]["quality_category"] for f in features],
-                       "datetime": [datetime.strptime(f["properties"]["acquired"],"%Y-%m-%dT%H:%M:%S.%fZ") for f in features]})
+                       "datetime": [datetime.strptime(f["properties"]["acquired"],"%Y-%m-%dT%H:%M:%S.%fZ") for f in features], "upper_pt1":[get_upper_line_coords(f, 0) for f in features], "upper_pt2":[get_upper_line_coords(f, 1) for f in features]})
     df["date"] = df['datetime'].dt.date
     
     try: #remove old searchfile
