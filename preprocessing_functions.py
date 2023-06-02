@@ -13,6 +13,8 @@ from helper_functions import get_date, get_scene_id, fixed_val_scaler, read_file
 import numpy as np
 from tqdm import tqdm
 from pyproj import Transformer, CRS
+from shapely.geometry import Polygon
+from xml.dom import minidom
 
 
 def isolateBand(img, bandNr=2):
@@ -36,28 +38,28 @@ def preprocess_scenes(files, outpath = "./", bandNr = 2):
     
     return out
 
-def shortest_distance_to_line(point, line_start, line_end):
-    #see https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points
-    point = np.array(point)
-    line_start = np.array(line_start)
-    line_end = np.array(line_end)
+# def shortest_distance_to_line(point, line_start, line_end):
+#     #see https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points
+#     point = np.array(point)
+#     line_start = np.array(line_start)
+#     line_end = np.array(line_end)
 
-    # Calculate shortest distance
-    shortest_distance = np.cross(point - line_start, line_end - line_start) / np.linalg.norm(line_end - line_start)
+#     # Calculate shortest distance
+#     shortest_distance = np.cross(point - line_start, line_end - line_start) / np.linalg.norm(line_end - line_start)
 
-    return shortest_distance
+#     return shortest_distance
 
-def get_poi_ydistance(scene, poi, epsg):
-    #TODO: implement epsg guesser and check in which CRS POI coords are given
-    #transform to UTM to have differences in m
-    proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
-    poi_proj = proj_tr.transform(*poi)
-    upt1_proj = proj_tr.transform(*scene.upper_pt1)
-    upt2_proj = proj_tr.transform(*scene.upper_pt2)
+# def get_poi_ydistance(scene, poi, epsg):
+#     #TODO: implement epsg guesser and check in which CRS POI coords are given
+#     #transform to UTM to have differences in m
+#     proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
+#     poi_proj = proj_tr.transform(*poi)
+#     upt1_proj = proj_tr.transform(*scene.upper_pt1)
+#     upt2_proj = proj_tr.transform(*scene.upper_pt2)
 
-    dist_to_upper_line = shortest_distance_to_line(poi_proj, upt1_proj, upt2_proj)
+#     dist_to_upper_line = shortest_distance_to_line(poi_proj, upt1_proj, upt2_proj)
     
-    return dist_to_upper_line
+#     return dist_to_upper_line
 
 def find_best_matches(df, minGroupSize = 10, mindt = 1):
     pd.options.mode.chained_assignment = None 
@@ -108,7 +110,7 @@ def find_best_matches(df, minGroupSize = 10, mindt = 1):
 
     return groups
 
-def rate_match(infodf, matchdf, poi, epsg, level = 3):
+def rate_match(infodf, matchdf, level = 3):
     #rate existing matches, do not suggest
     #sort by reference if not already to be able to calculate scores in batches
     matchdf = matchdf.sort_values("ref").reset_index(drop = True)
@@ -127,16 +129,52 @@ def rate_match(infodf, matchdf, poi, epsg, level = 3):
         sat_az_diff_scaled = fixed_val_scaler(sat_az_diff, 0,180)
         score =  (sum_va_scaled * sat_az_diff_scaled + diff_va_scaled )
         
-        refinfo["ydiff"] = refinfo.apply(lambda row: get_poi_ydistance(row, poi=poi, epsg=epsg), axis=1)  
-        secinfo["ydiff"] = secinfo.apply(lambda row: get_poi_ydistance(row, poi=poi, epsg=epsg), axis=1)   
+        refPoly = Polygon([tuple(coords) for coords in refinfo.footprint.iloc[0]])
+        overlap = []
         
-        ydiff = abs(refinfo.ydiff.iloc[0] - secinfo.ydiff)
+        for idx, row in secinfo.iterrows():
+            secPoly = Polygon([tuple(coords) for coords in row.footprint])
+            intersection = refPoly.intersection(secPoly)
+            overlap.append(intersection.area/refPoly.area*100)
+            
+        #add xml info
+        
+        # xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{refid}*metadata.xml")
+        # if len(xml_file)  == 1:
+            
+        #     xmldoc = minidom.parse(xml_file[0])
+        #     inc_ang = float(xmldoc.getElementsByTagName("eop:incidenceAngle")[0].firstChild.data)
+        #     view_ang = float(xmldoc.getElementsByTagName("ps:spaceCraftViewAngle")[0].firstChild.data)
+        #     ang_diff_ref = abs(inc_ang-view_ang)      
+        # else:
+        #     ang_diff_ref = np.nan
+            
+        # ang_diff_secs = []
+        # for secid in secids:
+
+        #     xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{secid}*metadata.xml")
+        #     if len(xml_file) == 1:
+                
+        #         xmldoc = minidom.parse(xml_file[0])
+        #         inc_ang = float(xmldoc.getElementsByTagName("eop:incidenceAngle")[0].firstChild.data)
+        #         view_ang = float(xmldoc.getElementsByTagName("ps:spaceCraftViewAngle")[0].firstChild.data)
+                       
+        #         ang_diff_secs.append(abs(inc_ang-view_ang))
+        #     else:
+        #         ang_diff_secs.append(np.nan)
+                
+            
         scores.append({
             "refid": refid,
             "secid": secinfo.ids, 
             "score": score, 
-            "poi_ydiff": ydiff})
-    scores = pd.DataFrame.from_records(scores).explode(["secid","score", "poi_ydiff"]).reset_index(drop = True)
+            "overlap": overlap,
+            "va_sum":refinfo.view_angle.iloc[0]+secinfo.view_angle,
+            "va_diff": abs(refinfo.view_angle.iloc[0]-secinfo.view_angle),
+            "az_diff": sat_az_diff})
+            #"ang_diff_diff": [a-ang_diff_ref for a in ang_diff_secs] })
+        
+    scores = pd.DataFrame.from_records(scores).explode(["secid","score", "overlap", "va_sum", "va_diff", "az_diff"]).reset_index(drop = True)
     return(scores)
 
 def add_offset_variance_to_rated_matches(scores, stereopath, prefix_ext = "L3B"):

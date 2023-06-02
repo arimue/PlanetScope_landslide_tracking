@@ -33,16 +33,16 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 # df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
 
 
-# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2022-07-01", date_stop = "2022-08-31")
-# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
+gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2022-07-01", date_stop = "2022-08-31")
+df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
 
-# matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
 
 #df_elements = df.sample(n=8)
 #matches = preprocessing.match_all(df_elements, path = "./Siguas/L3B/")
-# matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
-# scores = preprocessing.rate_match(df, matches, poi = (-72.156597, -16.36967), epsg = 32718)
-# scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv")
+matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+scores = preprocessing.rate_match(df, matches)
+scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv", index = False)
 
 #groups = preprocessing.find_best_matches(df, mindt = 30, minGroupSize = 5)
 # groups = groups.loc[groups.group_id.isin([6])].reset_index(drop = True)
@@ -78,8 +78,8 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 
 #files = glob.glob("/home/ariane/Downloads/MinaPurna_PSBSD_moreUnstable_L1B_psscene_*/files/PSScene/*/*/*AnalyticMS.tif")
 
-# files = glob.glob("/home/ariane/Downloads/delMedio_Sept22*/files/*AnalyticMS_SR_clip.tif")
-# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L3B/", bandNr = 2)
+# files = glob.glob("/home/ariane/Downloads/Siguas_L3B_fillGaps_psscene_analytic_sr_*/PSScene/*AnalyticMS_SR_clip.tif")
+# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/Siguas/L3B/", bandNr = 2)
 
 # #all_files = glob.glob("./MinaPurna/L1B/*_b2.tif")
 #reference = "./MinaPurna/L1B/20220823_133636_33_2465_1B_AnalyticMS_b2.tif"
@@ -118,10 +118,10 @@ ysize = 3300
 
 #correlate L3B data
 ###################################################################################################################
-# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_group6.csv")
-# df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/all_matches.csv")
+# #df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
 
-# for i in range(8,len(df)):
+# for i in range(50, len(df)):
 #     path,_ = os.path.split(df.ref[i])
 #     id1 = "_".join(df.ref[i].split("/")[-1].split("_")[0:4])
 #     id2 = "_".join(df.sec[i].split("/")[-1].split("_")[0:4])
@@ -159,7 +159,7 @@ ysize = 3300
 
 ###################################################
 
-matchfile = "./Siguas/L3B/matches_stable.csv"
+matchfile = "./Siguas/L3B/all_matches.csv"
 #aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
 aoi = "./Siguas/siguas_source_and_dep_area.geojson"
 
