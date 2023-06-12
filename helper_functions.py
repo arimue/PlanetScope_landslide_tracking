@@ -158,14 +158,13 @@ def size_from_aoi(aoi, gsd = 4, epsg = 32720):
 def warp(img, epsg, res = None):
     
     if res is not None: 
-        outname = "{img[:-4]}_epsg{epsg}_res{res}.tif"
+        outname = f"{img[:-4]}_epsg{epsg}_res{res}.tif"
         cmd = f"gdalwarp -t_srs EPSG:{epsg} -tr {res} {res} -co COMPRESS=DEFLATE -r bilinear -overwrite -co ZLEVEL=9 -co PREDICTOR=2 {img} {outname}"
     else: #let gdal guess resolution
         outname = f"{img[:-4]}_epsg{epsg}.tif"
         cmd = f"gdalwarp -t_srs EPSG:{epsg} -co COMPRESS=DEFLATE -r bilinear -overwrite -co ZLEVEL=9 -co PREDICTOR=2 {img} {outname}"
     subprocess.run(cmd, shell = True)
     return outname
-
 
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
     #gets approximate dimensions for clipping raw data from aoi

@@ -25,7 +25,9 @@ import cv2
 
 def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     
-
+    #NOTE: if the temporal baseline is short, the background noise of typically +-1-2 pixels will result in abnormally high velocities
+    #therefore, only use these pairs if the landslide is fast moving
+    
     # load autoRIFT output
     with rasterio.open(fn) as src:
         # get raster resolution from metadata
@@ -77,7 +79,7 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     return v, direction
 
 
-def calc_velocity_L3B(matchfile, prefixext="L3B", overwrite = False): 
+def calc_velocity_L3B(matchfile, prefixext="L3B", overwrite = False, medShift = True): 
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
 
@@ -93,7 +95,7 @@ def calc_velocity_L3B(matchfile, prefixext="L3B", overwrite = False):
         #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
         if os.path.isfile(disp):
             if not os.path.isfile(disp[:-4]+"_velocity.tif") or overwrite: 
-                v, direction = calc_velocity(disp, row["dt"], medShift=True)
+                v, direction = calc_velocity(disp, row["dt"], medShift=medShift)
 
                 save_file([v], disp, outname = disp[:-4]+"_velocity.tif")
         else:
@@ -214,71 +216,79 @@ def compare_surroundings_to_aoi(matchfile, aoi, level = 3, prefixext = "L3B"):
     
     return df
 
-def compare_two_aois(matchfile, aoi, level = 3, prefixext = "L3B"):
-    #aoi should have two polygons with an attribute field called "id" containing the values 1 and 2
+def compare_two_aois(matchfile, aoi, level=3, prefixext="L3B"):
+    # aoi should have two polygons with an attribute field called "id" containing the values 1 and 2
     df = pd.read_csv(matchfile)
-    path,_ = os.path.split(matchfile)
+    path, _ = os.path.split(matchfile)
 
-    df["id_ref"] = df.ref.apply(get_scene_id, level = level)
-    df["id_sec"] = df.sec.apply(get_scene_id, level = level)
+    df["id_ref"] = df.ref.apply(get_scene_id, level=level)
+    df["id_sec"] = df.sec.apply(get_scene_id, level=level)
     df["date_ref"] = df.id_ref.apply(get_date)
     df["date_sec"] = df.id_sec.apply(get_date)
-    
+
     if os.path.isfile("./temp.tif"):
         os.remove("./temp.tif")
-        
-    diffsdx = []
-    diffsdy = []
-        
-    for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
+
+    diffs_dx_mean = []    
+    diffs_dy_mean = []    
+    diffs_dx_median = []  
+    diffs_dy_median = []
+
+    for idx, row in tqdm(df.iterrows(), total=df.shape[0]):
         fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
-        diffdx = np.nan
-        diffdy = np.nan
-        
+        diffdx_mean = np.nan
+        diffdy_mean = np.nan
+        diffdx_median = np.nan
+        diffdy_median = np.nan
+
         if os.path.isfile(fn):
-            
-            dx = read_file(fn,1)
-            dy = read_file(fn,2)
-            dmask = read_file(fn,3)
+            dx = read_file(fn, 1)
+            dy = read_file(fn, 2)
+            dmask = read_file(fn, 3)
             dx[dmask == 0] = np.nan
             dy[dmask == 0] = np.nan
-            
+
             if not os.path.isfile("./temp.tif"):
-                #only calculating the mask once - all images should have the same extent
-                #rasterize aoi to find the pixels inside
+                # only calculating the mask once - all images should have the same extent
+                # rasterize aoi to find the pixels inside
                 extent = get_extent(fn)
                 resolution = read_transform(fn)[0]
-                #TODO: catch AOI having a different CRS that mapprojected rasters!
+                # TODO: catch AOI having a different CRS that mapprojected rasters!
                 cmd = f"gdal_rasterize -tr {resolution} {resolution} -a id -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
-                subprocess.run(cmd, shell = True)
+                subprocess.run(cmd, shell=True)
 
             mask = read_file("./temp.tif")
-              
+
             dx_aoi1 = dx.copy()
             dy_aoi1 = dy.copy()
-            
+
             dx_aoi1[mask != 1] = np.nan
             dy_aoi1[mask != 1] = np.nan
-            
+
             dx_aoi2 = dx.copy()
             dy_aoi2 = dy.copy()
-            
+
             dx_aoi2[mask != 2] = np.nan
             dy_aoi2[mask != 2] = np.nan
-            
-            
-            diffdx = np.nanmean(dx_aoi2) - np.nanmean(dx_aoi1)
-            diffdy = np.nanmean(dy_aoi2) - np.nanmean(dy_aoi1)
-            
-        diffsdx.append(diffdx)
-        diffsdy.append(diffdy)
-        
-    df["diff_dx"] = diffsdx
-    df["diff_dy"] = diffsdy
-    
-    
-    df.to_csv(matchfile[:-4]+"_offset_two_aois_compared.csv", index = False)
-    
+
+            diffdx_mean = np.nanmean(dx_aoi2) - np.nanmean(dx_aoi1)
+            diffdy_mean = np.nanmean(dy_aoi2) - np.nanmean(dy_aoi1)
+
+            diffdx_median = np.nanmedian(dx_aoi2) - np.nanmedian(dx_aoi1)
+            diffdy_median = np.nanmedian(dy_aoi2) - np.nanmedian(dy_aoi1)
+
+        diffs_dx_mean.append(diffdx_mean)
+        diffs_dy_mean.append(diffdy_mean)
+        diffs_dx_median.append(diffdx_median)
+        diffs_dy_median.append(diffdy_median)
+
+    df["diff_dx_mean"] = diffs_dx_mean
+    df["diff_dy_mean"] = diffs_dy_mean
+    df["diff_dx_median"] = diffs_dx_median
+    df["diff_dy_median"] = diffs_dy_median
+
+    df.to_csv(matchfile[:-4] + "_offset_two_aois_compared.csv", index=False)
+
     return df
 
 
