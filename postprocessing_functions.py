@@ -618,6 +618,15 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity"):
             #median shift 
             med = np.nanmedian(masked)
             masked = masked - med
+            
+            ####TODO: remove this
+            #siguas
+            # if (np.nanmedian(masked[1300:1500, 1200:1450])<0):
+            #     masked = masked * -1
+            # if (np.nanmedian(masked[1000:1200,900:1100])<0):
+            #     masked = masked * -1
+                
+            ####  
             #dx in m/yr
             array_list[i] = np.ma.masked_invalid(((masked*resolution[i])/dt[i])*365)
             
@@ -637,6 +646,7 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity"):
             #median shift 
             med = np.nanmedian(masked)
             masked = masked - med
+
             #dy in m/yr
             array_list[i] = np.ma.masked_invalid(((masked*resolution[i])/dt[i])*365)
 

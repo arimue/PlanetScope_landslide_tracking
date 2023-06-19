@@ -16,8 +16,8 @@ import core_functions as core
 
 path = "."
 #path = "/home/ariane/Documents/PlanetScope"
-img1 = path + "/Siguas/L1B/20220702_145351_89_240c_1B_AnalyticMS_b2.tif"  
-img2 = path + "/Siguas/L1B/20220716_144128_52_2478_1B_AnalyticMS_b2.tif"
+img1 = path + "/Siguas/L1B/20220707_144112_41_247c_1B_AnalyticMS_b2.tif"  
+img2 = path + "/Siguas/L1B/20220717_143827_66_2470_1B_AnalyticMS_b2.tif"
 aoi = path + "/Siguas/siguas_aoi.geojson"
 epsg = 32718
 refdem = path + "/DEMdata/Siguas/output_NASADEM_clip_output_COP30_clip_nuth_x-16.83_y-2.02_z+3.65_align.tif"
@@ -30,11 +30,13 @@ img1 = helper.clip_raw(img1, ul_lon, ul_lat, xsize, ysize, refdem)
 ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg)
 img2 = helper.clip_raw(img2, ul_lon, ul_lat, xsize, ysize, refdem)
 
+#[path +"/DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30.tif"]:
+for refdem in [path +"/DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30.tif"]:#[path +"/DEMdata/Siguas/COP30_utm_clip_NASADEM_utm_clip_align.tif"]:
 
-for refdem in [path +"/DEMdata/Siguas/COP30_utm_clip_NASADEM_utm_clip_align.tif"]:#[path +"/DEMdata/Siguas/output_NASADEM_clip_output_COP30_clip_nuth_x-16.83_y-2.02_z+3.65_align.tif", path +"/DEMdata/Siguas/NASADEM_utm_clip.tif", path+"/DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3-DEM_NASADEM_utm_clip_align.tif"]:
-
-    #img2r = core.improve_L1B_geolocation(amespath, img1, img2, refdem, epsg = epsg, order = 2, add_elev = True)
+    #img2r, newdem = core.improve_L1B_geolocation(amespath, img1, img2, refdem, epsg = epsg, order = 2, add_elev = True)
     
+    # mp1 = asp.mapproject(amespath, img1, newdem)
+    # mp2 = asp.mapproject(amespath, img2r, newdem)
     mp1 = asp.mapproject(amespath, img1, refdem)
     mp2 = asp.mapproject(amespath, img2, refdem)
     
@@ -45,7 +47,9 @@ for refdem in [path +"/DEMdata/Siguas/COP30_utm_clip_NASADEM_utm_clip_align.tif"
     id2 = helper.get_scene_id(img2)
     
     _,demfn = os.path.split(refdem)
-    prefix = f"{id1}_{id2}_{demfn[:-4]}"
+#    _,demfn = os.path.split(newdem)
+
+    prefix = f"{id1}_{id2}_noshift_{demfn[:-4]}"
     stereopath = asp.correlate_asp(amespath, mp1, mp2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
     asp.clean_asp_files(stereopath, prefix)
     

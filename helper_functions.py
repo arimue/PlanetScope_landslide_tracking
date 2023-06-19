@@ -114,7 +114,7 @@ def fixed_val_scaler(x, xmin, xmax):
     return (x-xmin)/(xmax-xmin)
 
     
-def size_from_aoi(aoi, gsd = 4, epsg = 32720):
+def size_from_aoi(aoi, gsd, epsg):
 
     #AOI has to be a rectangle 
     with open(aoi) as f:
@@ -235,3 +235,13 @@ def get_date(scene_id):
     #strip the time from th PS scene id
     return datetime.datetime.strptime(scene_id[0:8], "%Y%m%d")
 
+def match_raster_size_and_res(r1, r2):
+    epsg = get_epsg(r1)
+    xmin, ymin, xmax, ymax = get_extent(r1)
+    res = read_transform(r1)[0]
+    
+    cmd = f"gdalwarp -te {xmin} {ymin} {xmax} {ymax} -t_srs EPSG:{epsg} -tr {res} {res} -r cubic -overwrite -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 {r2} {r2[:-4]}_matched_size.tif"
+    result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
+    if result.stderr != "":
+        print(result.stderr)
+    return f"{r2[:-4]}_matched_size.tif"

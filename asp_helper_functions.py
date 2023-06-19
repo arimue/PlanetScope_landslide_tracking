@@ -38,7 +38,7 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
     return f"{folder}stereo/"
 
 
-def mapproject(amespath, img, dem, img_with_rpc = None, ba_prefix = None, ext = "mp",  epsg = "32720", resolution = 3):
+def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, ext = "mp", resolution = 3):
     
     # mapproject raw image data onto DEM
     # requires the image to have RPCs in the header. These can be added with copy_rpc if missing or just simply providing the image with rpc metadata

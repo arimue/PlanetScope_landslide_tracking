@@ -5,7 +5,7 @@ Created on Mon Feb 27 17:54:21 2023
 
 @author: ariane
 """
-from helper_functions import read_file,rasterValuesToPoint, clip_raw, get_scene_id, copy_rpcs, save_file, min_max_scaler
+from helper_functions import read_file,rasterValuesToPoint, warp, clip_raw, get_epsg, get_scene_id, copy_rpcs, save_file, min_max_scaler, match_raster_size_and_res
 import numpy as np
 import matplotlib.pyplot as plt
 import asp_helper_functions as asp
@@ -16,7 +16,7 @@ import scipy.ndimage
 import cv2 as cv
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
-import subprocess, os, sys
+import subprocess, os, sys, shutil
 from osgeo import gdal
 from pyproj import Transformer, CRS
 
@@ -44,6 +44,11 @@ def polyXYZ2(X, a, b, c, d, e, f, g, h, i, j):
 def polyXY3(X, a, b, c, d, e, f, g, h, i, j, k):
     x,y = X
     out = a*x**3 + b*y**3 + c*x**2*y + d*x*y**2 + e*x**2 +f*y**2 +g*x*y +h*x + i*y + k
+    return out
+
+def polyXYZ3(X, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t):
+    x,y,z = X
+    out = a*x**3 + b*y**3 + c*z**3 + d*x*y**2 + e*x*z**2 + f*y*x**2 + g*y*z**2 + h*z*x**2 + i*z*y**2 + j*x*y*z + k*x**2 + l*y**2 + m*z**2 + n*x*y + o*x*z + p*y*z + q*x + r*y + s*z + t
     return out
 
 
@@ -185,281 +190,104 @@ def improve_L3B_geolocation(img1, img2, order = 3, plot = False):
     
     return img2[:-4]+"_remapped.tif"
 
-
-def improve_L1B_geolocation_old(img1, img2, demname, order =3, plot = False):
-    df = find_tiepoints_SIFT(img1, img2, plot = plot)
-    image2 = read_file(img2)
-
-    #localize SIFT features in object space using RPCs from img1
-    ds = gdal.Open(img1)
-    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
-    pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img1, df.y_img1)))
-    ds = tr = None
-    
-    #now project these points into the second image using RPCs from img2
+def shift_dem_old(params, demname, img2, east_img1, north_img1, x_img2, y_img2, proj_tr):
+    a,b = params
+    print(f"{a} {b}")
+    if os.path.isfile(demname[:-4]+"_copy.tif"):
+        os.remove(demname[:-4]+"_copy.tif")
+    if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
+        os.remove(demname[:-4]+"_copy.tif.aux.xml")
+    shutil.copyfile(demname, demname[:-4]+"_copy.tif")
+    demds = gdal.Open(demname[:-4]+"_copy.tif")
+    gt = list(demds.GetGeoTransform())
+    gt[0] +=a
+    gt[3] +=b
+    demds.SetGeoTransform(tuple(gt))
+    demds = None
     
     ds = gdal.Open(img2)
-    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
-    pts_img,_ = tr.TransformPoints(1, list(zip([p[0] for p in pts_obj],[p[1] for p in pts_obj])))
+    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname[:-4]}_copy.tif"])
+
+    pts_obj,_ = tr.TransformPoints(0, list(zip(x_img2, y_img2)))
     ds = tr = None
-    
-    df["x_img2_should"] = [p[0] for p in pts_img]
-    df["y_img2_should"] = [p[1] for p in pts_img]
-    #if ref DEM has holes, points can become inf
-    df = df[np.isfinite(df).all(1)]
-    
-    df["xdiff"] = df.x_img2 - df.x_img2_should
-    df["ydiff"] = df.y_img2 - df.y_img2_should
-    
-    #remove matches with really large distances
-    pxup = np.nanpercentile(df.xdiff, 99)
-    pyup = np.nanpercentile(df.ydiff, 99)
-    pxlow = np.nanpercentile(df.xdiff, 1)
-    pylow = np.nanpercentile(df.ydiff, 1)
-    
-    df = df.loc[df.xdiff >= pxlow]
-    df = df.loc[df.xdiff <= pxup]
-    df = df.loc[df.ydiff >= pylow]
-    df = df.loc[df.ydiff <= pyup]
-    df = df.reset_index(drop = True)
-    
-    xgrid, ygrid = np.meshgrid(np.arange(0,image2.shape[1], 1), np.arange(0, image2.shape[0], 1))
 
-    if order == 1:
-        xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY1, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
-        xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY1, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
-            
-        dgx = polyXY1((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
-        dgy = polyXY1((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
-        
-    elif order == 2:
-
-        xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY2, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
-        xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY2, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
-            
-        dgx = polyXY2((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
-        dgy = polyXY2((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
-        
-    elif order == 3:
-
-        xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY3, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
-        xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY3, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
-            
-        dgx = polyXY3((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
-        dgy = polyXY3((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
-    
-    else:
-        print("Maximum order of polynomial fit is 3. Please pick a valid number!")
-        return
-            
-        
-    if plot:
-        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-
-        p1 = ax[0].imshow(dgx.reshape(xgrid.shape), cmap="magma")
-        ax[0].set_title("X fit")
-
-        p2 = ax[1].imshow(dgy.reshape(xgrid.shape), cmap="magma")
-        ax[1].set_title("Y fit")
-        fig.colorbar(p1, ax=ax[0])
-        fig.colorbar(p2, ax=ax[1])
-        plt.show()
-        
-    dgx = (xgrid+dgx.reshape(xgrid.shape)).astype(np.float32)
-    dgy = (ygrid +dgy.reshape(xgrid.shape)).astype(np.float32)
-    
-    image2_remap = cv.remap(image2, dgx, dgy, interpolation = cv.INTER_LINEAR)
-    cv.imwrite(img2[:-4]+"_remapped.tif", image2_remap)
-    
-    copy_rpcs(img2, img2[:-4]+"_remapped.tif")
-    
-    return img2[:-4]+"_remapped.tif"
-
-
-def opt_xpos_o1(params, east_img1, north_img1, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c = params
-    # Adjust the x and y coordinates of img2
-    
-    
-    x_img2_adjusted = x_img2*a +y_img2*b +c
-    y_img2_adjusted = y_img2 
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
-    
     coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
     
-    east_diff = east_img1 - np.array([c[0] for c in coords_proj])
+    east_diff = abs(east_img1 - np.array([c[0] for c in coords_proj]))
+    north_diff = abs(north_img1 - np.array([c[1] for c in coords_proj]))
 
-
-    #replace infinite values
-    east_diff[~np.isfinite(east_diff)] = 0
+    # plt.figure()
+    # plt.scatter(x_img2, y_img2, c = east_diff, vmin = -10, vmax = 10, cmap = "coolwarm")
+    # plt.title(f"a = {a}, b = {b}")
     
-
-    return east_diff
-
-def opt_ypos_o1(params, east_img1, north_img1, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c = params
-    # Adjust the x and y coordinates of img2
-    x_img2_adjusted = x_img2 
-    y_img2_adjusted = x_img2*a +y_img2*b +c
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
+    #penalize inf values
+    east_diff[~np.isfinite(east_diff)] = 100
+    north_diff[~np.isfinite(north_diff)] = 100
     
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+    print(east_diff.sum()+north_diff.sum())
+    return east_diff.sum()+north_diff.sum()
+
+
+
+def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_tr, cross_track_weight = 10):
+    a,b = params
+    # a = result.x[0]
+    # b = result.x[1]
+    #print(f"{a} {b}")
+    if os.path.isfile(demname[:-4]+"_copy.tif"):
+        os.remove(demname[:-4]+"_copy.tif")
+    if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
+        os.remove(demname[:-4]+"_copy.tif.aux.xml")
+    shutil.copyfile(demname, demname[:-4]+"_copy.tif")
+    demds = gdal.Open(demname[:-4]+"_copy.tif")
+    gt = list(demds.GetGeoTransform())
+    gt[0] +=a
+    gt[3] +=b
+    demds.SetGeoTransform(tuple(gt))
+    demds = None
     
-    north_diff = north_img1 - np.array([c[1] for c in coords_proj])
+    #project img1
+    ds = gdal.Open(img1)
+    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname[:-4]}_copy.tif"])
 
-    #replace infinite values
-    north_diff[~np.isfinite(north_diff)] = 0
+    pts_obj,_ = tr.TransformPoints(0, list(zip(x_img1, y_img1)))
+    ds = tr = None
 
-    return north_diff
+    coords_proj_img1 = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+    
+    #project img2
+    ds = gdal.Open(img2)
+    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname[:-4]}_copy.tif"])
 
+    pts_obj,_ = tr.TransformPoints(0, list(zip(x_img2, y_img2)))
+    ds = tr = None
 
-def opt_xpos_o1_z(params, east_img1, north_img1, elev_img2, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c,d = params
-    # Adjust the x and y coordinates of img2
+    coords_proj_img2 = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+    
+    east_diff = abs(np.array([c[0] for c in coords_proj_img1]) - np.array([c[0] for c in coords_proj_img2]))
+    north_diff = abs(np.array([c[1] for c in coords_proj_img1]) - np.array([c[1] for c in coords_proj_img2]))
     
     
-    x_img2_adjusted = x_img2*a +y_img2*b +elev_img2*c +d
-    y_img2_adjusted = y_img2 
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
+    # plt.figure()
+    # plt.scatter(x_img2, y_img2, c = east_diff, vmin = -10, vmax = 10, cmap = "coolwarm")
+    # plt.title(f"a = {a}, b = {b}")
     
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+    #penalize inf values
+    east_diff[~np.isfinite(east_diff)] = 100
+    north_diff[~np.isfinite(north_diff)] = 100
     
-    east_diff = east_img1 - np.array([c[0] for c in coords_proj])
+    return cross_track_weight *east_diff.sum()+north_diff.sum()
 
-    #replace infinite values
-    east_diff[~np.isfinite(east_diff)] = 0
-    
+    #penalize infinite values
+    east_diff[~np.isfinite(east_diff)] = 100#np.nanmax(east_diff)
+    north_diff[~np.isfinite(north_diff)] = 100#np.nanmax(north_diff)
 
-    return east_diff
+    print(east_diff.quantile(0.8)+north_diff.quantile(0.8))
+    return east_diff.quantile(0.8)+north_diff.quantile(0.8)
 
-def opt_ypos_o1_z(params, east_img1, north_img1, elev_img2, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c,d = params
-    # Adjust the x and y coordinates of img2
-    x_img2_adjusted = x_img2 
-    y_img2_adjusted = x_img2*a +y_img2*b +elev_img2*c +d
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
-    
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
-    
-    north_diff = north_img1 - np.array([c[1] for c in coords_proj])
-
-    #replace infinite values
-    north_diff[~np.isfinite(north_diff)] = 0
-
-    return north_diff
-
-
-def opt_xpos_o2(params, east_img1, north_img1, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c,d,e,f = params
-    # Adjust the x and y coordinates of img2
-    
-    x_img2_adjusted = a*x_img2**2 + b*y_img2**2 +c*x_img2*y_img2 + d*x_img2 +e*y_img2 +f 
-    y_img2_adjusted = y_img2 
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
-    
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
-    
-    east_diff = east_img1 - np.array([c[0] for c in coords_proj])
-
-    #replace infinite values
-    east_diff[~np.isfinite(east_diff)] = 0
-    
-
-    return east_diff
-
-def opt_ypos_o2(params, east_img1, north_img1, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c,d,e,f = params
-    # Adjust the x and y coordinates of img2
-    x_img2_adjusted = x_img2 
-    y_img2_adjusted = a*x_img2**2 + b*y_img2**2 +c*x_img2*y_img2 + d*x_img2 +e*y_img2 +f 
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
-    
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
-    
-    north_diff = north_img1 - np.array([c[1] for c in coords_proj])
-
-    #replace infinite values
-    north_diff[~np.isfinite(north_diff)] = 0
-
-    return north_diff
-
-def opt_xpos_o2_z(params, east_img1, north_img1, elev_img2, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c,d,e,f,g,h,i,j = params
-    # Adjust the x and y coordinates of img2
-    
-    x_img2_adjusted = a*x_img2**2 + b*y_img2**2 +c*elev_img2**2 + d*x_img2*y_img2 + e*x_img2*elev_img2 + f*y_img2*elev_img2 +g*x_img2 +h*y_img2 +i*elev_img2 +j 
-    y_img2_adjusted = y_img2 
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
-    
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
-    
-    east_diff = east_img1 - np.array([c[0] for c in coords_proj])
-
-    #replace infinite values
-    east_diff[~np.isfinite(east_diff)] = 0
-
-
-    return east_diff
-
-def opt_ypos_o2_z(params, east_img1, north_img1,elev_img2, x_img2, y_img2, tr, proj_tr):
-    # Extract the adjustment parameters
-    a,b,c,d,e,f,g,h,i,j = params
-    # Adjust the x and y coordinates of img2
-    x_img2_adjusted = x_img2 
-    y_img2_adjusted = a*x_img2**2 + b*y_img2**2 +c*elev_img2**2 + d*x_img2*y_img2 + e*x_img2*elev_img2 + f*y_img2*elev_img2 +g*x_img2 +h*y_img2 +i*elev_img2 +j 
-
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj, _ = tr.TransformPoints(0, list(zip(x_img2_adjusted, y_img2_adjusted)))
-
-    # Calculate the differences between the projected positions and img1 coordinates
-    
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
-    
-    north_diff = north_img1 - np.array([c[1] for c in coords_proj])
-
-    #replace inf values with zero. cannot just be removed because the optimization wount work if output has different lengths
-    #TODO: think about this
-    north_diff[~np.isfinite(north_diff)] = 0
-    #print(len(north_diff))
-    return north_diff
 
     
-def improve_L1B_geolocation(amespath, img1, img2, demname, epsg = 32720, order = 2, plot = False, add_elev = True):
+def improve_L1B_geolocation(amespath, img1, img2, demname, epsg, order = 5, plot = False, add_elev = True):
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
     
     id1 = get_scene_id(img1)
@@ -492,6 +320,7 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg = 32720, order =
     
     #transform to UTM to have differences in m
     proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
+
     coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
     
     df["east_img1"] = [c[0] for c in coords_proj]
@@ -501,131 +330,178 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg = 32720, order =
     #calculate the initial distances in bject space to remove points that are far off
     ds = gdal.Open(img2)
     tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
-    # Localize SIFT features in object space using adjusted coordinates
-    pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img2, df.y_img2)))
+
     
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+    #shift NEW
+    pts_img,_ = tr.TransformPoints(1, [(c[0],c[1]) for c in pts_obj])
+    df["x_img2_should"] = [c[0] for c in pts_img]
+    df["y_img2_should"] = [c[1] for c in pts_img]
     
-    df["east_img2"] = [c[0] for c in coords_proj]
-    df["north_img2"] = [c[1] for c in coords_proj]
-    df["east_diff_init"] = df.east_img1 - df.east_img2
-    df["north_diff_init"] = df.north_img1 - df.north_img2
-    
-    dist_thresh = 10
-    
-    df = df.loc[df.east_diff_init <= dist_thresh]
-    df = df.loc[df.north_diff_init <= dist_thresh]
-    df = df.loc[df.east_diff_init >= -dist_thresh]
-    df = df.loc[df.north_diff_init >= -dist_thresh]
+    df["x_diff"] = df.x_img2 - df.x_img2_should
+    df["y_diff"] = df.y_img2 - df.y_img2_should
+        
     
     #if ref DEM has holes or are outside image frame, points can become inf
     df = df[np.isfinite(df).all(1)]
     df = df.reset_index(drop = True)
 
-    # Perform least squares minimization
-    #get meshgrid for remapping the image later on
+    df["x_img2_new"] = df.x_img2 - df.x_diff.median()
+    df["y_img2_new"] = df.y_img2 - df.y_diff.median()
+    
+    
+    dist_thresh = 5 #TODO: let user adjust this
+
+    #remove unreliable matches remaining after median shift
+    df = df.loc[abs(df.x_img2_new - df.x_img2_should) <= dist_thresh]
+    df = df.loc[abs(df.y_img2_new - df.y_img2_should) <= dist_thresh]
+
+    print("Finding optimal DEM shift ...")
+    #result = scipy.optimize.minimize(shift_dem_old, [0,0], args=(demname, img2, df.east_img1, df.north_img1, df.x_img2_new, df.y_img2_new, proj_tr))
+    result = scipy.optimize.minimize(shift_dem, [0,0], args=(demname, img1, img2, df.x_img1, df.y_img1, df.x_img2_new, df.y_img2_new, proj_tr))
+    print(f"Adjusting DEM position: xshift = {result.x[0]}, yshift = {result.x[1]}")
+
+    #apply final shift to DEM
+    if os.path.isfile(demname[:-4]+"_copy.tif"):
+        os.remove(demname[:-4]+"_copy.tif")
+    if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
+        os.remove(demname[:-4]+"_copy.tif.aux.xml")
+    shutil.copyfile(demname, demname[:-4]+"_copy.tif")
+    demds = gdal.Open(demname[:-4]+"_copy.tif")
+    gt = list(demds.GetGeoTransform())
+    gt[0] +=result.x[0]
+    gt[3] +=result.x[1]
+    demds.SetGeoTransform(tuple(gt))
+    demds = tr = ds = None
+
+    #get meshgrid for remapping the image
     xgrid, ygrid = np.meshgrid(np.arange(0,image2.shape[1], 1), np.arange(0, image2.shape[0], 1))
     
-    if add_elev:
-        if not os.path.isfile(f"{img2[:-4]}_zgrid.npy"):
-
-            print("Generating zgrid. This will take a moment...")
-            pts_obj_e, _ = tr.TransformPoints(0, list(zip(xgrid.flatten(), ygrid.flatten())))
-            coords_proj_e = [proj_tr.transform(c[0],c[1]) for c in pts_obj_e]
-            easting = np.array([c[0] for c in coords_proj_e])
-            northing = np.array([c[1] for c in coords_proj_e])
-    
-            zgrid = rasterValuesToPoint(easting, northing, demname)
-            zgrid[zgrid<0] = np.nan
-            zgrid = zgrid.reshape(xgrid.shape)
-            np.save(f"{img2[:-4]}_zgrid.npy", zgrid)
-        else: 
-            print("Loading existing zgrid...")
-            zgrid = np.load(f"{img2[:-4]}_zgrid.npy")         
-
-    print("Adjusting secondary image...")    
-    if order == 1:
-        if add_elev: 
-            #extracting z position using initial RPCs to stay consistent with zgrid generation, slight offsets should not be a problem at 30 m res
-            df["elev_img2"] = rasterValuesToPoint(df.east_img2, df.north_img2, demname)
-            resultx = scipy.optimize.least_squares(opt_xpos_o1_z, [1,0,0,0], args=(df.east_img1, df.north_img1, df.elev_img2, df.x_img2, df.y_img2, tr, proj_tr))
-            resulty = scipy.optimize.least_squares(opt_ypos_o1_z, [0,1,0,0], args=(df.east_img1, df.north_img1, df.elev_img2, df.x_img2, df.y_img2, tr, proj_tr))
-            print(resultx.x)
-            print(resulty.x)
-            df["east_diff_fit"] = opt_xpos_o1_z(resultx.x, df.east_img1, df.north_img1,df.elev_img2, df.x_img2, df.y_img2, tr, proj_tr)
-            df["north_diff_fit"] = opt_ypos_o1_z(resulty.x, df.east_img1, df.north_img1, df.elev_img2, df.x_img2, df.y_img2, tr, proj_tr)
-            dgx = polyXYZ1((xgrid,ygrid,zgrid),*resultx.x).astype(np.float32) 
-            dgy = polyXYZ1((xgrid,ygrid,zgrid),*resulty.x).astype(np.float32) 
-        else:
-            resultx = scipy.optimize.least_squares(opt_xpos_o1, [1,0,0], args=(df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr))
-            resulty = scipy.optimize.least_squares(opt_ypos_o1, [0,1,0], args=(df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr))
-            print(resultx.x)
-            print(resulty.x)
-            df["east_diff_fit"] = opt_xpos_o1(resultx.x, df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr)
-            df["north_diff_fit"] = opt_ypos_o1(resulty.x, df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr)
-            dgx = polyXY1((xgrid,ygrid),*resultx.x).astype(np.float32) 
-            dgy = polyXY1((xgrid,ygrid),*resulty.x).astype(np.float32) 
-            
-    elif order == 2:
-        if add_elev: 
-            df["elev_img2"] = rasterValuesToPoint(df.east_img2, df.north_img2, demname)
-            resultx = scipy.optimize.least_squares(opt_xpos_o2_z, [0,0,0,0,0,0,1,0,0,0], args=(df.east_img1, df.north_img1, df.elev_img2,df.x_img2, df.y_img2, tr, proj_tr))
-            resulty = scipy.optimize.least_squares(opt_ypos_o2_z, [0,0,0,0,0,0,0,1,0,0], args=(df.east_img1, df.north_img1, df.elev_img2,df.x_img2, df.y_img2, tr, proj_tr))
-            print(resultx.x)
-            print(resulty.x)
-            df["east_diff_fit"] = opt_xpos_o2_z(resultx.x, df.east_img1, df.north_img1,df.elev_img2, df.x_img2, df.y_img2, tr, proj_tr)
-            df["north_diff_fit"] = opt_ypos_o2_z(resulty.x, df.east_img1, df.north_img1,df.elev_img2, df.x_img2, df.y_img2, tr, proj_tr)
-            dgx = polyXYZ2((xgrid,ygrid, zgrid),*resultx.x).astype(np.float32) 
-            dgy = polyXYZ2((xgrid,ygrid, zgrid),*resulty.x).astype(np.float32) 
-        
-        else: 
-            resultx = scipy.optimize.least_squares(opt_xpos_o2, [0,0,0,1,0,0], args=(df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr))
-            resulty = scipy.optimize.least_squares(opt_ypos_o2, [0,0,0,0,1,0], args=(df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr))
-            print(resultx.x)
-            print(resulty.x)
-            df["east_diff_fit"] = opt_xpos_o2(resultx.x, df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr)
-            df["north_diff_fit"] = opt_ypos_o2(resulty.x, df.east_img1, df.north_img1, df.x_img2, df.y_img2, tr, proj_tr)
-            dgx = polyXY2((xgrid,ygrid),*resultx.x).astype(np.float32)
-            dgy = polyXY2((xgrid,ygrid),*resulty.x).astype(np.float32)
-            
-
-    if plot:
-        fig, ax = plt.subplots(2, 2, figsize=(12, 10))
-
-        ax[0,0].imshow(image2, cmap="gray")
-        p1 = ax[0,0].scatter(df.x_img2, df.y_img2, c= df.east_diff_init, s = 0.5, vmin = -3, vmax = 3, cmap = "coolwarm")
-        ax[0,0].set_title("Tiepoint distance obj space init")
-
-        ax[0,1].imshow(image2, cmap="gray")
-        p2 = ax[0,1].scatter(df.x_img2, df.y_img2, c= df.east_diff_fit, s = 0.5, vmin = -3, vmax = 3, cmap = "coolwarm")
-        ax[0,1].set_title("Tiepoint distance obj space after fit")
-        
-        
-        ax[1,0].imshow(image2, cmap="gray")
-        p3 = ax[1,0].scatter(df.x_img2, df.y_img2, c= df.north_diff_init, s = 0.5, vmin = -3, vmax = 3, cmap = "coolwarm")
-        ax[1,0].set_title("Tiepoint distance obj space init")
-
-        ax[1,1].imshow(image2, cmap="gray")
-        p4 = ax[1,1].scatter(df.x_img2, df.y_img2, c= df.north_diff_fit, s = 0.5, vmin = -3, vmax = 3, cmap = "coolwarm")
-        ax[1,1].set_title("Tiepoint distance obj space after fit")
-        
-        fig.colorbar(p1, ax=ax[0,0])
-        fig.colorbar(p2, ax=ax[0,1])
-        fig.colorbar(p3, ax=ax[1,0])
-        fig.colorbar(p4, ax=ax[1,1])
-        plt.show()
-        
-
-    ds = tr = None
-    
-    #fit (difference between dxg and xgrid) needs to be subtracted to be propperly in place
-    dgx = (xgrid -(dgx-xgrid)).astype(np.float32)
-    dgy = (ygrid -(dgy-ygrid)).astype(np.float32)
+    #apply median shift to image    
+    dgx = (xgrid + df.x_diff.median()).astype(np.float32)
+    dgy = (ygrid + df.y_diff.median()).astype(np.float32)
 
     image2_remap = cv.remap(image2, dgx, dgy, interpolation = cv.INTER_LINEAR)
     cv.imwrite(img2[:-4]+"_remapped.tif", image2_remap)
     
     copy_rpcs(img2, img2[:-4]+"_remapped.tif")
     
-    return img2[:-4]+"_remapped.tif"
+    return img2[:-4]+"_remapped.tif", demname[:-4]+"_copy.tif"
+
+def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
+    perc1 = np.nanpercentile(dat, plow)
+    perc2 = np.nanpercentile(dat, pup)
+    
+    dat[dat < perc1] = replace
+    dat[dat > perc2] = replace
+
+    return dat
+
+dispfn = "./Siguas/L1B/stereo/20220707_144112_41_247c_20220717_143827_66_2470_demshift_final_20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30_copy-F.tif"
+demname = "./DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30_copy.tif"
+
+def apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = None):
+    df = pd.read_csv(matchfn)
+    
+    for idx, row in df.iterrows():
+        id1 = get_scene_id(row.ref, level = level)
+        id2 = get_scene_id(row.sec, level = level)
+        prefix = f"{id1}_{id2}{prefix_ext}"
+        
+        path,_ = os.path.split(row.ref)
+        dispfn = os.path.join(path, "stereo/", prefix+"-F.tif")
+       # print(dispfn)
+        if os.path.isfile(dispfn):
+            #print(idx)
+            dx = read_file(dispfn, b = 1)
+            dy = read_file(dispfn, b = 2)
+            mask = read_file(dispfn, b = 3)
+            
+            dx[mask == 0] = np.nan
+            dy[mask == 0] = np.nan
+            
+            #TODO: add plotting option
+            fix,ax = plt.subplots(1,2)
+            ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
+            ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
+            
+            dxc = percentile_cut(dx.copy())
+            dyc = percentile_cut(dy.copy())
+            
+                        
+            xgrid, ygrid = np.meshgrid(np.arange(0,dx.shape[1], 1), np.arange(0, dx.shape[0], 1))
+
+            fit_data = min_max_scaler(xgrid.flatten())
+            fit_data = np.c_[fit_data, min_max_scaler(ygrid.flatten()), dxc.flatten(), dyc.flatten()]
+            
+            if demname is not None: 
+                print("Adding elevation to the polynomial fit...")
+                dem_matched = match_raster_size_and_res(dispfn, demname)
+                zgrid = read_file(dem_matched)
+                #make sure to remove nodata (any negative values)
+                zgrid[zgrid < 0] = np.nan
+                #clipping and resampling DEM to exactly fit the extent and resolution of the disparity raster
+            
+                fit_data = np.c_[fit_data,min_max_scaler(zgrid.flatten())]
+
+            fit_data = fit_data[~np.isnan(fit_data).any(axis=1)]
+            
+            if order == 1:
+                
+                if demname is None:
+                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
+                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
+                        
+                    dgx = polyXY1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs1)
+                    dgy = polyXY1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs2)
+                    
+                else:
+                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
+                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
+                        
+                    dgx = polyXYZ1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs1)
+                    dgy = polyXYZ1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                
+            elif order == 2:
+                if demname is None:
+                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
+                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
+                                   
+                    dgx = polyXY2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs1)
+                    dgy = polyXY2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs2)
+                    
+                else:
+                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
+                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
+                        
+                    dgx = polyXYZ2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs1)
+                    dgy = polyXYZ2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                
+                    
+            elif order == 3:
+                if demname is None:
+
+                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
+                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
+                        
+                    dgx = polyXY3(min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), *xcoeffs1)
+                    dgy = polyXY3(min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), *xcoeffs2)
+                    
+                else:
+                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
+                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
+                        
+                    dgx = polyXYZ3((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs1)
+                    dgy = polyXYZ3((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                
+            dx = dx - dgx.reshape(dx.shape)
+            dy = dy - dgy.reshape(dy.shape)
+            
+            fix,ax = plt.subplots(1,2)
+            ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
+            ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
+            
+            save_file([dx,dy], dispfn, dispfn[:-4]+"_polyfit.tif")
+            
+            
+  
 
