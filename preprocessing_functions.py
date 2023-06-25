@@ -9,12 +9,13 @@ Created on Wed Mar  1 15:55:06 2023
 import os, subprocess, shutil, glob, datetime
 import pandas as pd
 import planet_search_functions as search
-from helper_functions import get_date, get_scene_id, fixed_val_scaler, read_file
+from helper_functions import get_date, get_scene_id, fixed_val_scaler, read_file, clip_raw, size_from_aoi, clip_mp_cutline
 import numpy as np
 from tqdm import tqdm
 from pyproj import Transformer, CRS
 from shapely.geometry import Polygon
 from xml.dom import minidom
+import asp_helper_functions as asp
 
 
 def isolateBand(img, bandNr=2):
@@ -37,6 +38,17 @@ def preprocess_scenes(files, outpath = "./", bandNr = 2):
     print("Isolated bands can now be found in " + outpath)
     
     return out
+
+def orthorectify_L1B(files, demname, aoi, epsg, amespath, pad = 0):
+    ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg, gsd = 4)
+
+    for f in files: 
+        #its best to roughly clip before mapprojection, otherwise the process takes long
+        clip = clip_raw(f, ul_lon, ul_lat, xsize+pad, ysize+pad, demname)
+        mp = asp.mapproject(amespath, clip, demname, epsg = epsg)
+        #finetune clip
+        clip2 = clip_mp_cutline(mp, aoi)
+
 
 # def shortest_distance_to_line(point, line_start, line_end):
 #     #see https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points
@@ -276,7 +288,7 @@ def generate_matchfile_from_groups(groups, path, ext = "_3B_AnalyticMS_SR_clip_b
     return matches
 
 
-def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, checkExistence = False):
+def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, level = 3, checkExistence = False):
     
     matches = []
     df = df.sort_values("ids").reset_index(drop = True)
@@ -297,8 +309,8 @@ def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, checkE
     
     
     if dt is not None:
-        date_ref = [get_date(get_scene_id(i, level = 3)) for i in matches.ref]
-        date_sec = [get_date(get_scene_id(i, level = 3)) for i in matches.sec]
+        date_ref = [get_date(get_scene_id(i, level = level)) for i in matches.ref]
+        date_sec = [get_date(get_scene_id(i, level = level)) for i in matches.sec]
         good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt]
         
         matches = matches.iloc[good_dt].reset_index(drop = True)

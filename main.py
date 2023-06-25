@@ -30,33 +30,39 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 # 
 
 # gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", cloud_cover_max=0.1, date_start = "2020-01-01", date_stop = "2023-05-30")
-# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 80)
+# df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
 
 
 # gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2020-01-01", date_stop = "2023-05-31")
 # df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
 
+
 # matches = preprocessing.match_all(df, path = "./Siguas/L3B/randomPairs/", dt = 180, checkExistence=True)
 
+#matches = match_all(df, path = "./delMedio/L1B/group4/", ext = "_1B_AnalyticMS_b2_clip_mp_clip.tif",  level = 1, dt = 180, checkExistence=True)
 #df_elements = df.sample(n=10)
 #matches = preprocessing.match_all(df_elements, path = "./Siguas/L3B/")
-# matches = preprocessing.match_all(df, path = "./Siguas/L3B/", checkExistence=True)
+#matches = preprocessing.match_all(df, path = "./delMedio/L3B/group2/", checkExistence=True, dt = 180)
 # scores = preprocessing.rate_match(df, matches)
 # scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv", index = False)
 
-#groups = preprocessing.find_best_matches(df, mindt = 30, minGroupSize = 5)
-# groups = groups.loc[groups.group_id.isin([6])].reset_index(drop = True)
+# groups = preprocessing.find_best_matches(df, mindt = 30, minGroupSize = 5)
+# groups = groups.loc[groups.group_id.isin([5,9])].reset_index(drop = True)
 # files = glob.glob("/home/ariane/Documents/PlanetScope/delMedio/L3B/*_b2.tif")
 # ids = [get_scene_id(f,level = 3) for f in files]
 # groups = groups.loc[groups.ids.isin(ids)].reset_index(drop = True)
 # groups.to_csv("/home/ariane/Documents/PlanetScope/delMedio/L3B/groupinfo.csv", index = False)
 
-# files = glob.glob("/home/ariane/Documents/PlanetScope/delMedio/L3B/group1/*_b2.tif")
-# ids = [get_scene_id(f,level = 3) for f in files]
-# groups = df.loc[df.ids.isin(ids)].reset_index(drop = True)
-# groups["type"] = "Group 1"
+# groupsm = pd.DataFrame()
+# i = 1
+# for group in ["group1", "group2", "group3", "random"]:
+#     files = glob.glob(f"/home/ariane/Documents/PlanetScope/delMedio/L3B/{group}/*_b2.tif")
+#     ids = [get_scene_id(f,level = 3) for f in files]
+#     groups = df.loc[df.ids.isin(ids)].reset_index(drop = True)
+#     groups["type"] = f"Group {i}"
+#     i += 1
 
-# groupsm = pd.concat([groups2, groups])
+#     groupsm = pd.concat([groupsm, groups])
 # groupsm.to_csv("/home/ariane/Documents/PlanetScope/delMedio/L3B/groupinfo.csv", index = False)
 
 
@@ -80,8 +86,8 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 # stable = search.suggest_reference_and_stable_pair(df, max_day_diff = 20)
 
 #files = glob.glob("/home/ariane/Downloads/Independent_*/PSScene/*AnalyticMS.tif")
-# files = glob.glob("/home/ariane/Downloads/missingL3B*/PSScene/*AnalyticMS_SR_clip.tif")
-# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L3B/", bandNr = 2)
+# files = glob.glob("/home/ariane/Downloads/delMedio_addGroup*/PSScene/*AnalyticMS_SR_clip.tif")
+# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L3B/group2/", bandNr = 2)
 
 # #all_files = glob.glob("./MinaPurna/L1B/*_b2.tif")
 #reference = "./MinaPurna/L1B/20220823_133636_33_2465_1B_AnalyticMS_b2.tif"
@@ -120,31 +126,39 @@ ysize = 3300
 
 #correlate L3B data
 ###################################################################################################################
-df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_comp_toL1B.csv")
+# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L1B/group4/all_matches.csv")
 # df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
 
-for i in range(len(df)):
-    path,_ = os.path.split(df.ref[i])
-    id1 = "_".join(df.ref[i].split("/")[-1].split("_")[0:4])
-    id2 = "_".join(df.sec[i].split("/")[-1].split("_")[0:4])
+# for i in range(len(df)):
+#     path,_ = os.path.split(df.ref[i])
+#     id1 = "_".join(df.ref[i].split("/")[-1].split("_")[0:4])
+#     id2 = "_".join(df.sec[i].split("/")[-1].split("_")[0:4])
 
-    prefix = id1 + "_" + id2 + "L3B"
-    if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
+#     prefix = id1 + "_" + id2 + "_L1B"
+#     if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
 
-        stereopath = asp.correlate_asp(amespath, df.ref[i], df.sec[i], prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
-        asp.clean_asp_files(stereopath, prefix)
+#         stereopath = asp.correlate_asp(amespath, df.ref[i], df.sec[i], prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
+#         asp.clean_asp_files(stereopath, prefix)
     
 ####################################################################################################################
 #stack
-#postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv")
+# postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group1/all_matches.csv", prefixext="L3B")
+# postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group2/all_matches.csv", prefixext="L3B")
+# postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group3/all_matches.csv", prefixext="L3B")
+# postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", prefixext="L3B")
+
 # for group in [2,8,10]:
 #     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dx")
 #     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dy")
 #     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "velocity")
-
-#postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dx")
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dx")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dy")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "velocity")
+
+# for g in [1,2,3]:
+#     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group{g}/all_matches.csv", what = "dx")
+    #postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group{g}/all_matches.csv", what = "dy")
+    #postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group{g}/all_matches.csv", what = "velocity")
 
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_group6.csv", what = "dx")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_group6.csv", what = "dy")
@@ -171,14 +185,32 @@ for i in range(len(df)):
 
 ###################################################
 
-matchfile = "./Siguas/L3B/all_matches.csv"
-#aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
-aoi = "./Siguas/siguas_source_and_dep_area.geojson"
+# matchfile = "./Siguas/L3B/randomPairs/matches_randomPairs.csv"
+# #aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
+# aoi = "./delMedio/del_medio_aoi.geojson"
+demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_NASADEM_epsg32720_align_copy.tif"
+# amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
 
+# files = glob.glob("./delMedio/L1B/group4/*_b2.tif")
+# orthorectify_L1B(files, demname, aoi, epsg = 32718, amespath = amespath, pad = 400)
+
+    
 #out = postprocessing.compare_two_aois(matchfile, aoi, level = 3, prefixext = "L3B")
+# aoi = "./delMedio/landslide_mask.geojson"
+# for group in [1,2,3]:
+#     matchfile = f"./delMedio/L3B/group{group}/all_matches.csv"
+#     #core.apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = demname)
 
+#     postprocessing.get_stats_in_aoi(matchfile, level = 3, aoi = aoi,  prefixext = "L3B", max_dt = 10000, take_velocity = True)
 
+matchfile = "./delMedio/L1B/group4/all_matches.csv"
+postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "velocity")
+postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "dx", medShift = False)
+postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "dy", medShift = False)
 
+#postprocessing.calc_velocity_L3B(matchfile, prefixext="_L1B_polyfit", medShift = False)
+# core.apply_polyfit(matchfile, level = 1, prefix_ext= "_L1B", order = 2, demname = demname)
+# postprocessing.get_stats_in_aoi(matchfile, level = 3, aoi = aoi,  prefixext = "L3B", max_dt = 10000, take_velocity = True)
 
 #########################################################################################################################
 
@@ -194,8 +226,8 @@ aoi = "./Siguas/siguas_source_and_dep_area.geojson"
 
 # preprocess downloaded scenes (isolate green band)
 # get a list of all downloaded scenes
-# files = glob.glob("/home/ariane/Downloads/Siguas_DEM*/files/PSScene/*/basic_analytic_udm2/*AnalyticMS.tif")
-# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/DEMgen/Siguas/", bandNr = 2)
+# files = glob.glob("/home/ariane/Downloads/delMedio_L1B_may2022_psscene_basic_analytic_udm2/PSScene/*AnalyticMS.tif")
+# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L1B/group4/", bandNr = 2)
 # all_files = glob.glob("./Dove-C_Jujuy_all/L1B/*_b2.tif")
 # reference = "./Dove-C_Jujuy_all/L1B/20190626_140959_103c_1B_Analytic_b2.tif"
 # df = preprocessing.generate_matchfile(all_files, reference, checkOverlap = False, refPoly = "/home/ariane/Documents/PlanetScope/polygon_DoveC.geojson", minOverlap = 95)

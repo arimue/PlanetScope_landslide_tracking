@@ -116,7 +116,7 @@ def find_tiepoints_SIFT(img1, img2, min_match_count = 100, plot = False):
     return df
 
 
-def improve_L3B_geolocation(img1, img2, order = 3, plot = False):
+def improve_L3B_geolocation_before_correlation(img1, img2, order = 3, plot = False):
     df = find_tiepoints_SIFT(img1, img2, plot = plot)
 
     #!!!! assumes that images are clipped to the same aoi
@@ -190,44 +190,6 @@ def improve_L3B_geolocation(img1, img2, order = 3, plot = False):
     
     return img2[:-4]+"_remapped.tif"
 
-def shift_dem_old(params, demname, img2, east_img1, north_img1, x_img2, y_img2, proj_tr):
-    a,b = params
-    print(f"{a} {b}")
-    if os.path.isfile(demname[:-4]+"_copy.tif"):
-        os.remove(demname[:-4]+"_copy.tif")
-    if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
-        os.remove(demname[:-4]+"_copy.tif.aux.xml")
-    shutil.copyfile(demname, demname[:-4]+"_copy.tif")
-    demds = gdal.Open(demname[:-4]+"_copy.tif")
-    gt = list(demds.GetGeoTransform())
-    gt[0] +=a
-    gt[3] +=b
-    demds.SetGeoTransform(tuple(gt))
-    demds = None
-    
-    ds = gdal.Open(img2)
-    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname[:-4]}_copy.tif"])
-
-    pts_obj,_ = tr.TransformPoints(0, list(zip(x_img2, y_img2)))
-    ds = tr = None
-
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
-    
-    east_diff = abs(east_img1 - np.array([c[0] for c in coords_proj]))
-    north_diff = abs(north_img1 - np.array([c[1] for c in coords_proj]))
-
-    # plt.figure()
-    # plt.scatter(x_img2, y_img2, c = east_diff, vmin = -10, vmax = 10, cmap = "coolwarm")
-    # plt.title(f"a = {a}, b = {b}")
-    
-    #penalize inf values
-    east_diff[~np.isfinite(east_diff)] = 100
-    north_diff[~np.isfinite(north_diff)] = 100
-    
-    print(east_diff.sum()+north_diff.sum())
-    return east_diff.sum()+north_diff.sum()
-
-
 
 def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_tr, cross_track_weight = 10):
     a,b = params
@@ -287,7 +249,7 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
 
 
     
-def improve_L1B_geolocation(amespath, img1, img2, demname, epsg, order = 5, plot = False, add_elev = True):
+def disparity_based_DEM_alignment(amespath, img1, img2, demname, epsg, order = 5, plot = False, add_elev = True):
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
     
     id1 = get_scene_id(img1)
@@ -310,7 +272,7 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg, order = 5, plot
     txt = asp.parse_match_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
     df = asp.read_match(txt)
     
-    image2 = read_file(img2)
+    # image2 = read_file(img2)
 
     #localize SIFT features in object space using RPCs from img1
     ds = gdal.Open(img1)
@@ -345,6 +307,7 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg, order = 5, plot
     df = df[np.isfinite(df).all(1)]
     df = df.reset_index(drop = True)
 
+    #remove median shift. these are related to imprecise cuts when working with the raw data only
     df["x_img2_new"] = df.x_img2 - df.x_diff.median()
     df["y_img2_new"] = df.y_img2 - df.y_diff.median()
     
@@ -365,27 +328,15 @@ def improve_L1B_geolocation(amespath, img1, img2, demname, epsg, order = 5, plot
         os.remove(demname[:-4]+"_copy.tif")
     if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
         os.remove(demname[:-4]+"_copy.tif.aux.xml")
-    shutil.copyfile(demname, demname[:-4]+"_copy.tif")
-    demds = gdal.Open(demname[:-4]+"_copy.tif")
+    shutil.copyfile(demname, demname[:-4]+"_aligned.tif")
+    demds = gdal.Open(demname[:-4]+"_aligned.tif")
     gt = list(demds.GetGeoTransform())
     gt[0] +=result.x[0]
     gt[3] +=result.x[1]
     demds.SetGeoTransform(tuple(gt))
     demds = tr = ds = None
 
-    #get meshgrid for remapping the image
-    xgrid, ygrid = np.meshgrid(np.arange(0,image2.shape[1], 1), np.arange(0, image2.shape[0], 1))
-    
-    #apply median shift to image    
-    dgx = (xgrid + df.x_diff.median()).astype(np.float32)
-    dgy = (ygrid + df.y_diff.median()).astype(np.float32)
-
-    image2_remap = cv.remap(image2, dgx, dgy, interpolation = cv.INTER_LINEAR)
-    cv.imwrite(img2[:-4]+"_remapped.tif", image2_remap)
-    
-    copy_rpcs(img2, img2[:-4]+"_remapped.tif")
-    
-    return img2[:-4]+"_remapped.tif", demname[:-4]+"_copy.tif"
+    return demname[:-4]+"_aligned.tif"
 
 def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
     perc1 = np.nanpercentile(dat, plow)
@@ -395,9 +346,6 @@ def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
     dat[dat > perc2] = replace
 
     return dat
-
-dispfn = "./Siguas/L1B/stereo/20220707_144112_41_247c_20220717_143827_66_2470_demshift_final_20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30_copy-F.tif"
-demname = "./DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30_copy.tif"
 
 def apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = None):
     df = pd.read_csv(matchfn)
@@ -420,9 +368,9 @@ def apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = No
             dy[mask == 0] = np.nan
             
             #TODO: add plotting option
-            fix,ax = plt.subplots(1,2)
-            ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
-            ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
+            # fix,ax = plt.subplots(1,2)
+            # ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
+            # ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
             
             dxc = percentile_cut(dx.copy())
             dyc = percentile_cut(dy.copy())
@@ -496,11 +444,11 @@ def apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = No
             dx = dx - dgx.reshape(dx.shape)
             dy = dy - dgy.reshape(dy.shape)
             
-            fix,ax = plt.subplots(1,2)
-            ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
-            ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
+            # fix,ax = plt.subplots(1,2)
+            # ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
+            # ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
             
-            save_file([dx,dy], dispfn, dispfn[:-4]+"_polyfit.tif")
+            save_file([dx,dy], dispfn, dispfn[:-6]+"_polyfit-F.tif")
             
             
   

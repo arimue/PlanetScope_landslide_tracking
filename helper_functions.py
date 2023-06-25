@@ -216,12 +216,23 @@ def copy_rpcs(rpc_fn, non_rpc_fn):
     del(non_rpc_img)
     
 #PS scene specific
-def get_scene_id(fn, level = 1):
+def get_scene_id(fn):
     #extract the scene id from a PS scene filename
     #assumes the filename still begins with the scene ID (should be default when downloading data)
+        
     
     #make sure to remove the path if still part of the image
-    _, fn = os.path.split(fn)
+    _, fn = os.path.split(fn) 
+    
+    #determine processing level of scenes
+    if "_1B_" in fn:
+        level = 1
+    elif "_3B_" in fn:
+        level = 3
+    else:
+        print("Could not determine processing level of the data. Make sure that either _1B_ or _3B_ is included in the filename of your scene.")
+        return
+    
     if fn.split("_").index(f"{level}B") == 4: #PSB.SD case
         scene_id = "_".join(fn.split("_")[0:4])
     elif fn.split("_").index(f"{level}B") == 3: #PS2 case
