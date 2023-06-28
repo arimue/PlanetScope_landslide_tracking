@@ -71,7 +71,7 @@ def clean_asp_files(path, prefix):
             shutil.rmtree(file)
             
 
-def dem_pipeline(amespath, demcoregpath, img1, img2, refdem, aoi = None, epsg = 32720, prefix = None, overwrite = False):
+def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix = None, overwrite = False):
     
     #TODO implement check that the epsg is always a projected EPSG
     if prefix is None: 
@@ -85,9 +85,9 @@ def dem_pipeline(amespath, demcoregpath, img1, img2, refdem, aoi = None, epsg = 
     if aoi is not None:
         #TODO: implement epsg finder
         #TODO: implement GSD finder
-        ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg)
+        ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg, gsd = 4)
         img1 = clip_raw(img1, ul_lon, ul_lat, xsize, ysize, refdem)
-        ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg)
+        ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg, gsd = 4)
         img2 = clip_raw(img2, ul_lon, ul_lat, xsize, ysize, refdem)
         
     path, fn1 = os.path.split(img1)
@@ -139,19 +139,21 @@ def dem_pipeline(amespath, demcoregpath, img1, img2, refdem, aoi = None, epsg = 
     else:
         print(f"Using existing DEM {path}/point2dem_run2/{prefix}-DEM.tif")
         
-    print(f"Aligning DEM to {refdem}...")
-    
-    #RefDEM will need to be in UTM coordinates
-    
-    epsg = get_epsg(refdem)
-    
-    
-    if epsg == 4326:
-        print("Reprojecting the reference DEM to a projected CRS...")
-        refdem = warp(refdem, epsg = epsg)
         
-    cmd = f"{demcoregpath}dem_align.py {refdem} {path}/point2dem_run2/{prefix}-DEM.tif -mode nuth -max_dz 1000 -max_offset 500"
-    subprocess.run(cmd, shell = True)
+    #alignment with demcoreg. Sometimes not working so well, so I prefer to use the disparity based alignment approach (see core functions)
+    # print(f"Aligning DEM to {refdem}...")
+    
+    # #RefDEM will need to be in UTM coordinates
+    
+    # epsg = get_epsg(refdem)
+    
+    
+    # if epsg == 4326:
+    #     print("Reprojecting the reference DEM to a projected CRS...")
+    #     refdem = warp(refdem, epsg = epsg)
+        
+    # cmd = f"{demcoregpath}dem_align.py {refdem} {path}/point2dem_run2/{prefix}-DEM.tif -mode nuth -max_dz 1000 -max_offset 500"
+    # subprocess.run(cmd, shell = True)
     #TODO: improve max offset constraints (initial guess?) catch errors better so that process doesnt have to start from the beginning, i.e. implement overwrite check
 
 

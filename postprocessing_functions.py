@@ -42,7 +42,7 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
         dy = src.read(2)
         
         if meta["count"] == 3:
-            print("Interpreting the third band as good pixel mask.")
+           # print("Interpreting the third band as good pixel mask.")
             valid = src.read(3)
             dx[valid == 0] = np.nan
             dy[valid == 0] = np.nan
@@ -395,7 +395,7 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
 
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F_polyfit{ext}.tif"
+        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F{ext}.tif"
         #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F_velocity.tif"
 
 
@@ -566,7 +566,7 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity", me
 
     average_vals = np.ma.average(array_list, axis=0)
     variance_vals = np.ma.var(array_list, axis = 0)
-    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}.tif"))
+    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}_{prefixext}.tif"))
 
     
 

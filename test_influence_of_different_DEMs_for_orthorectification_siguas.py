@@ -25,20 +25,18 @@ amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-
 #amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
 
 #make sure to find aoi with same refdem
-ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg)
+ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
 img1 = helper.clip_raw(img1, ul_lon, ul_lat, xsize, ysize, refdem)
-ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg)
+ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
 img2 = helper.clip_raw(img2, ul_lon, ul_lat, xsize, ysize, refdem)
 
 #[path +"/DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30.tif"]:
-for refdem in [path +"/DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30.tif"]:#[path +"/DEMdata/Siguas/COP30_utm_clip_NASADEM_utm_clip_align.tif"]:
-
-    #img2r, newdem = core.improve_L1B_geolocation(amespath, img1, img2, refdem, epsg = epsg, order = 2, add_elev = True)
+for refdem in [path +"/DEMdata/Siguas/final_aligned_PlanetDEM_epsg32718.tif"]:#[path +"/DEMdata/Siguas/COP30_utm_clip_NASADEM_utm_clip_align.tif"]:
     
     # mp1 = asp.mapproject(amespath, img1, newdem)
     # mp2 = asp.mapproject(amespath, img2r, newdem)
-    mp1 = asp.mapproject(amespath, img1, refdem)
-    mp2 = asp.mapproject(amespath, img2, refdem)
+    mp1 = asp.mapproject(amespath, img1, refdem, epsg = 32718)
+    mp2 = asp.mapproject(amespath, img2, refdem, epsg = 32718)
     
     mp1 = helper.clip_mp_cutline(mp1, aoi)
     mp2 = helper.clip_mp_cutline(mp2, aoi)

@@ -5,7 +5,7 @@ Created on Mon Feb 27 17:54:21 2023
 
 @author: ariane
 """
-from helper_functions import read_file,rasterValuesToPoint, warp, clip_raw, get_epsg, get_scene_id, copy_rpcs, save_file, min_max_scaler, match_raster_size_and_res
+from helper_functions import read_file,rasterValuesToPoint, warp, read_meta, clip_raw, get_epsg, get_scene_id, copy_rpcs, save_file, min_max_scaler, match_raster_size_and_res
 import numpy as np
 import matplotlib.pyplot as plt
 import asp_helper_functions as asp
@@ -247,96 +247,132 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
     print(east_diff.quantile(0.8)+north_diff.quantile(0.8))
     return east_diff.quantile(0.8)+north_diff.quantile(0.8)
 
-
-    
-def disparity_based_DEM_alignment(amespath, img1, img2, demname, epsg, order = 5, plot = False, add_elev = True):
+  
+def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, iterations = 1):
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
+    for i in range(iterations):
+        id1 = get_scene_id(img1)
+        id2 = get_scene_id(img2)
     
-    id1 = get_scene_id(img1)
-    id2 = get_scene_id(img2)
-
-    prefix = f"{id1}_{id2}_L1B"
-    path, _ = os.path.split(img1)
-    
-    if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
-        #TODO: allow adjustment of ames parameters
-        print("Generating L1B disparity map to find tiepoints across entire scene...")
-
-        stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
-        asp.clean_asp_files(stereopath, prefix)
+        prefix = f"{id1}_{id2}_L1B"
+        path, _ = os.path.split(img1)
         
-    else:
-        print("Disparity file exists. Loading existing file to find tiepoints...")
+        #usually, the PlanetDEM is located quite well in space, just the elevation is off and tilted
+        #therefore, the elevation difference between it and a reference DEM is calculated, modelled with a 1st order polyfit and subtracted
         
-    asp.image_align_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
-    txt = asp.parse_match_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
-    df = asp.read_match(txt)
+        refdemclip = match_raster_size_and_res(demname, refdem)
+        dem1 = read_file(demname)
+        dem2 = read_file(refdemclip)
+        meta = read_meta(demname)
+        dem1[dem1 == meta["nodata"]] = np.nan
+        dem2[dem1 == meta["nodata"]] = np.nan
+        
+        demdiff = dem1-dem2
+        xgrid, ygrid = np.meshgrid(np.arange(0,dem1.shape[1], 1), np.arange(0, dem1.shape[0], 1))
     
-    # image2 = read_file(img2)
-
-    #localize SIFT features in object space using RPCs from img1
-    ds = gdal.Open(img1)
-    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
-    pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img1, df.y_img1)))
-    ds = tr = None
+        data = np.c_[xgrid.flatten(), ygrid.flatten(), demdiff.flatten()]
+        data = data[~np.isnan(data).any(axis=1)]
     
-    #transform to UTM to have differences in m
-    proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
-
-    coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+        xcoeffs, xcov = scipy.optimize.curve_fit(polyXY1, xdata = (data[:,0], data[:,1]), ydata = data[:,2])
+        dg = polyXY1((xgrid.flatten(), ygrid.flatten()), *xcoeffs).reshape(dem1.shape)
+        
+        dem1 = dem1-dg
+        
+        if i > 0: #naming will be off if more then 10 iterations 
+            save_file([dem1], demname, demname[:-19]+f"_zaligned_it{i}.tif")
+            demname = demname[:-19]+f"_zaligned_it{i}.tif"
+            
+        else:
+            save_file([dem1], demname, demname[:-4]+f"_zaligned_it{i}.tif")
+            demname = demname[:-4]+f"_zaligned_it{i}.tif"
+        #demname = warp(demname, epsg = 4326)
+        
+        if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
+            #TODO: allow adjustment of ames parameters
+            print("Generating L1B disparity map to find tiepoints across entire scene...")
     
-    df["east_img1"] = [c[0] for c in coords_proj]
-    df["north_img1"] = [c[1] for c in coords_proj]
+            stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
+            asp.clean_asp_files(stereopath, prefix)
+            
+        else:
+            print("Disparity file exists. Loading existing file to find tiepoints...")
+            
+        asp.image_align_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
+        txt = asp.parse_match_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
+        df = asp.read_match(txt)
+        
+        # image2 = read_file(img2)
     
-
-    #calculate the initial distances in bject space to remove points that are far off
-    ds = gdal.Open(img2)
-    tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
-
+        #localize SIFT features in object space using RPCs from img1
+        ds = gdal.Open(img1)
+        tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
+        pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img1, df.y_img1)))
+        ds = tr = None
+        
+        #transform to UTM to have differences in m
+        proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
     
-    #shift NEW
-    pts_img,_ = tr.TransformPoints(1, [(c[0],c[1]) for c in pts_obj])
-    df["x_img2_should"] = [c[0] for c in pts_img]
-    df["y_img2_should"] = [c[1] for c in pts_img]
-    
-    df["x_diff"] = df.x_img2 - df.x_img2_should
-    df["y_diff"] = df.y_img2 - df.y_img2_should
+        coords_proj = [proj_tr.transform(c[0],c[1]) for c in pts_obj]
+        
+        df["east_img1"] = [c[0] for c in coords_proj]
+        df["north_img1"] = [c[1] for c in coords_proj]
         
     
-    #if ref DEM has holes or are outside image frame, points can become inf
-    df = df[np.isfinite(df).all(1)]
-    df = df.reset_index(drop = True)
-
-    #remove median shift. these are related to imprecise cuts when working with the raw data only
-    df["x_img2_new"] = df.x_img2 - df.x_diff.median()
-    df["y_img2_new"] = df.y_img2 - df.y_diff.median()
+        #calculate the initial distances in bject space to remove points that are far off
+        ds = gdal.Open(img2)
+        tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
     
+        
+        #shift NEW
+        pts_img,_ = tr.TransformPoints(1, [(c[0],c[1]) for c in pts_obj])
+        df["x_img2_should"] = [c[0] for c in pts_img]
+        df["y_img2_should"] = [c[1] for c in pts_img]
+        
+        df["x_diff"] = df.x_img2 - df.x_img2_should
+        df["y_diff"] = df.y_img2 - df.y_img2_should
+            
+        
+        #if ref DEM has holes or are outside image frame, points can become inf
+        df = df[np.isfinite(df).all(1)]
+        df = df.reset_index(drop = True)
+        
+        if len(df) == 0:
+            print("Error! There are no valid matches in your dataframe left. This means that the tiepoints could not properly be projected. Check demname and input images.")
+            return
+        
+        #remove median shift. these are related to imprecise cuts when working with the raw data only
+        df["x_img2_new"] = df.x_img2 - df.x_diff.median()
+        df["y_img2_new"] = df.y_img2 - df.y_diff.median()
+        
+        
+        dist_thresh = 5 #TODO: let user adjust this
     
-    dist_thresh = 5 #TODO: let user adjust this
+        #remove unreliable matches remaining after median shift
+        df = df.loc[abs(df.x_img2_new - df.x_img2_should) <= dist_thresh]
+        df = df.loc[abs(df.y_img2_new - df.y_img2_should) <= dist_thresh]
+    
+        print("Finding optimal DEM shift ...")
+        #result = scipy.optimize.minimize(shift_dem_old, [0,0], args=(demname, img2, df.east_img1, df.north_img1, df.x_img2_new, df.y_img2_new, proj_tr))
+        result = scipy.optimize.minimize(shift_dem, [0,0], args=(demname, img1, img2, df.x_img1, df.y_img1, df.x_img2_new, df.y_img2_new, proj_tr))
+        print(f"Adjusting DEM position: xshift = {result.x[0]}, yshift = {result.x[1]}")
+    
+        #apply final shift to DEM
+        if os.path.isfile(demname[:-4]+"_copy.tif"):
+            os.remove(demname[:-4]+"_copy.tif")
+        if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
+            os.remove(demname[:-4]+"_copy.tif.aux.xml")
+        shutil.copyfile(demname, demname[:-17]+f"_xyzaligned_it{i}.tif")
+        demds = gdal.Open(demname[:-17]+f"_xyzaligned_it{i}.tif")
+        gt = list(demds.GetGeoTransform())
+        gt[0] +=result.x[0]
+        gt[3] +=result.x[1]
+        demds.SetGeoTransform(tuple(gt))
+        demds = tr = ds = None
+        
+        demname = demname[:-17]+f"_xyzaligned_it{i}.tif"
+        
 
-    #remove unreliable matches remaining after median shift
-    df = df.loc[abs(df.x_img2_new - df.x_img2_should) <= dist_thresh]
-    df = df.loc[abs(df.y_img2_new - df.y_img2_should) <= dist_thresh]
-
-    print("Finding optimal DEM shift ...")
-    #result = scipy.optimize.minimize(shift_dem_old, [0,0], args=(demname, img2, df.east_img1, df.north_img1, df.x_img2_new, df.y_img2_new, proj_tr))
-    result = scipy.optimize.minimize(shift_dem, [0,0], args=(demname, img1, img2, df.x_img1, df.y_img1, df.x_img2_new, df.y_img2_new, proj_tr))
-    print(f"Adjusting DEM position: xshift = {result.x[0]}, yshift = {result.x[1]}")
-
-    #apply final shift to DEM
-    if os.path.isfile(demname[:-4]+"_copy.tif"):
-        os.remove(demname[:-4]+"_copy.tif")
-    if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
-        os.remove(demname[:-4]+"_copy.tif.aux.xml")
-    shutil.copyfile(demname, demname[:-4]+"_aligned.tif")
-    demds = gdal.Open(demname[:-4]+"_aligned.tif")
-    gt = list(demds.GetGeoTransform())
-    gt[0] +=result.x[0]
-    gt[3] +=result.x[1]
-    demds.SetGeoTransform(tuple(gt))
-    demds = tr = ds = None
-
-    return demname[:-4]+"_aligned.tif"
+    return demname
 
 def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
     perc1 = np.nanpercentile(dat, plow)
@@ -347,12 +383,12 @@ def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
 
     return dat
 
-def apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = None):
+def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None):
     df = pd.read_csv(matchfn)
     
     for idx, row in df.iterrows():
-        id1 = get_scene_id(row.ref, level = level)
-        id2 = get_scene_id(row.sec, level = level)
+        id1 = get_scene_id(row.ref)
+        id2 = get_scene_id(row.sec)
         prefix = f"{id1}_{id2}{prefix_ext}"
         
         path,_ = os.path.split(row.ref)

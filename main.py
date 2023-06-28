@@ -147,10 +147,10 @@ ysize = 3300
 # postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group3/all_matches.csv", prefixext="L3B")
 # postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", prefixext="L3B")
 
-# for group in [2,8,10]:
-#     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dx")
-#     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dy")
-#     postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "velocity")
+for group in [2,8,10]:
+    postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dx", prefixext = "L3B_polyfit")
+    postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dy", prefixext = "L3B_polyfit")
+    postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "velocity", prefixext = "L3B_polyfit")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dx")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dy")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "velocity")
@@ -164,9 +164,9 @@ ysize = 3300
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_group6.csv", what = "dy")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/matches_group6.csv", what = "velocity")
 
-#postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dx")
-# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dy")
-# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "velocity")
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dx", prefixext = "L3B_polyfit")
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dy", prefixext = "L3B_polyfit")
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "velocity", prefixext = "L3B_polyfit")
 
 #######################################################################################################################
 # infodf = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/info_taton_scenes.csv")
@@ -187,8 +187,9 @@ ysize = 3300
 
 # matchfile = "./Siguas/L3B/randomPairs/matches_randomPairs.csv"
 # #aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
-# aoi = "./delMedio/del_medio_aoi.geojson"
-demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_NASADEM_epsg32720_align_copy.tif"
+aoi = "./delMedio/landslide_mask.geojson"
+#demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_NASADEM_epsg32720_align_copy.tif"
+demname = "./DEMdata/Siguas/final_aligned_PlanetDEM_epsg32718.tif"
 # amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
 
 # files = glob.glob("./delMedio/L1B/group4/*_b2.tif")
@@ -203,14 +204,39 @@ demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_
 
 #     postprocessing.get_stats_in_aoi(matchfile, level = 3, aoi = aoi,  prefixext = "L3B", max_dt = 10000, take_velocity = True)
 
-matchfile = "./delMedio/L1B/group4/all_matches.csv"
-postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "velocity")
-postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "dx", medShift = False)
-postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "dy", medShift = False)
+# matchfile = "./delMedio/L1B/group4/all_matches_no2803.csv"
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "velocity")
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "dx", medShift = False)
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "dy", medShift = False)
+
+#matchfile = "./delMedio/L3B/random/all_matches.csv"
+# postprocessing.calc_velocity_L3B(matchfile, prefixext="L3B_polyfit", medShift = False)
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="L3B_polyfit", what = "velocity")
+#postprocessing.stack_rasters_weightfree(matchfile, prefixext="L3B_polyfit", what = "dx", medShift = False)
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="L3B_polyfit", what = "dy", medShift = False)
+#matchfile = "./delMedio/L3B/random/all_matches_no2803.csv"
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="L3B_polyfit", what = "velocity")
+#postprocessing.stack_rasters_weightfree(matchfile, prefixext="L3B_polyfit", what = "dx", medShift = False)
+# postprocessing.stack_rasters_weightfree(matchfile, prefixext="L3B_polyfit", what = "dy", medShift = False)
+
 
 #postprocessing.calc_velocity_L3B(matchfile, prefixext="_L1B_polyfit", medShift = False)
-# core.apply_polyfit(matchfile, level = 1, prefix_ext= "_L1B", order = 2, demname = demname)
-# postprocessing.get_stats_in_aoi(matchfile, level = 3, aoi = aoi,  prefixext = "L3B", max_dt = 10000, take_velocity = True)
+
+# for group in [2,8,10]:
+#     matchfile = f"./Siguas/L3B/matches_group{group}.csv"
+#     core.apply_polyfit(matchfile, prefix_ext= "L3B", order = 2, demname = demname)
+#     postprocessing.calc_velocity_L3B(matchfile, prefixext="L3B_polyfit", medShift = False)
+    
+#postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "L3B_polyfit", max_dt = 10000, take_velocity = True)
+
+# matchfile = "./Siguas/L1B/matches_comp_toL1B.csv"
+# core.apply_polyfit(matchfile, prefix_ext= "_noshift_20220702_145351_89_240c_20220706_144107_59_24a3_ck45-DEM_xyzaligned_it2", order = 2, demname = demname)
+
+#matchfile = "./delMedio/L1B/group4/all_matches_no2803.csv"
+#postprocessing.calc_velocity_L3B(matchfile, prefixext="_L1B_polyfit", medShift = False)
+
+
+#postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "_L1B_polyfit", max_dt = 10000, take_velocity = True)
 
 #########################################################################################################################
 
@@ -333,24 +359,35 @@ postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", wha
 
 #########################DEM generation#####################################
 # aoi = './DEMgen/siguas_dem_aoi.geojson'
-# # aoi = './DEMgen/dem_aoi.geojson'
+# # # aoi = './DEMgen/dem_aoi.geojson'
 
-# # img1 = "./DEMgen/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"            
-# # img2 = "./DEMgen/20220916_141026_69_2461_1B_AnalyticMS_b2.tif" 
-# # img2 = "./DEMgen/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"  
-# # img2 = "./DEMgen/20220908_141037_39_2479_1B_AnalyticMS_b2.tif"
+# # # img1 = "./DEMgen/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"            
+# # # img2 = "./DEMgen/20220916_141026_69_2461_1B_AnalyticMS_b2.tif" 
+# # # img2 = "./DEMgen/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"  
+# # # img2 = "./DEMgen/20220908_141037_39_2479_1B_AnalyticMS_b2.tif"
 
 # img1 = "./DEMgen/Siguas/20220702_145351_89_240c_1B_AnalyticMS_b2.tif"
 # img2 = "./DEMgen/Siguas/20220706_144107_59_24a3_1B_AnalyticMS_b2.tif"
-# # # #amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
+# # # # #amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
 # amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
 # id1 = get_scene_id(img1)
 # id2 = get_scene_id(img2)
 
 # epsg = 32718      
-# prefix = f"{id1}_{id2}_ck65"
-# refdem = "./DEMdata/siguas_COP30_wgs.tif"
-# #refdem = "./DEMdata/output_COP30_epsg32720_dem_align/output_COP30_epsg32720_output_NASADEM_epsg32720_nuth_x+15.80_y+2.09_z-1.01_align.tif"
+# prefix = f"{id1}_{id2}_ck45"
+# refdem = "./DEMdata/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM_NASADEM_utm_clip_align_epsg32718_res30_copy_epsg4326.tif"
+# # refdem = "./DEMdata/siguas_COP30_wgs.tif"
+# # #refdem = "./DEMdata/output_COP30_epsg32720_dem_align/output_COP30_epsg32720_output_NASADEM_epsg32720_nuth_x+15.80_y+2.09_z-1.01_align.tif"
 # demcoregpath = "/raid-manaslu/amueting/PhD/Project1/demcoreg/demcoreg/"
-# #potentially need to install pygeotools pip install pygeotools https://github.com/dshean/pygeotools for demcoreg to work
-# asp.dem_pipeline(amespath, demcoregpath, img1, img2, refdem, prefix = prefix, aoi = aoi, epsg = 32720, overwrite = True)
+# # #potentially need to install pygeotools pip install pygeotools https://github.com/dshean/pygeotools for demcoreg to work
+# asp.dem_pipeline(amespath,  img1, img2, refdem, prefix = prefix, aoi = aoi, epsg = 32718, overwrite = True)
+
+#######################DEM alignment###################################
+
+# refdem = "./DEMgen/Siguas/COP30_utm_clip_dem_align/COP30_utm_clip_NASADEM_utm_clip_align.tif"
+# demname = "./DEMgen/Siguas/20220702_145351_89_240c_20220706_144107_59_24a3_ck65-DEM.tif"
+# amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
+# path = "/home/ariane/Documents/PlanetScope"
+# img1 = path + "/Siguas/L1B/20220707_144112_41_247c_1B_AnalyticMS_b2_clip.tif"  
+# img2 = path + "/Siguas/L1B/20220717_143827_66_2470_1B_AnalyticMS_b2_clip.tif"
+# core.disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg = 32718, iterations = 3)
