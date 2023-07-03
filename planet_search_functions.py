@@ -111,7 +111,7 @@ def refine_search_and_convert_to_csv(searchfile, refPoly, instrument = "PS2", or
     features = check_overlap(features, refPoly = refPoly, minOverlap = minOverlap)
     
     df = pd.DataFrame({"ids":[f["id"] for f in features], "view_angle":[f["properties"]["view_angle"] for f in features], "gsd":[f["properties"]["gsd"] for f in features],"sat_az":[f["properties"]["satellite_azimuth"] for f in features],"quality":[f["properties"]["quality_category"] for f in features],
-                       "datetime": [datetime.strptime(f["properties"]["acquired"],"%Y-%m-%dT%H:%M:%S.%fZ") for f in features], "footprint":[f["geometry"]["coordinates"][0] for f in features]})
+                       "datetime": [datetime.strptime(f["properties"]["acquired"],"%Y-%m-%dT%H:%M:%S.%fZ") for f in features], "footprint":[f["geometry"]["coordinates"][0] for f in features], "sun_azimuth":[f["properties"]["sun_azimuth"] for f in features],"sun_elevation":[f["properties"]["sun_elevation"] for f in features]})
     df["date"] = df['datetime'].dt.date
     
     try: #remove old searchfile

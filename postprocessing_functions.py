@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from tqdm import tqdm
 import rasterio
-from scipy.stats import circmean, circstd
+from scipy.stats import circmean, circstd, circvar
 from sklearn.cluster import KMeans
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import pairwise_distances
@@ -83,7 +83,7 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     return v, direction
 
 
-def calc_velocity_L3B(matchfile, prefixext, overwrite = False, medShift = True): 
+def calc_velocity_wrapper(matchfile, prefixext, overwrite = False, medShift = True): 
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
     
@@ -100,10 +100,10 @@ def calc_velocity_L3B(matchfile, prefixext, overwrite = False, medShift = True):
         disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif"
         #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
         if os.path.isfile(disp):
-            if not os.path.isfile(disp[:-4]+"_velocity.tif") or overwrite: 
+            if overwrite or (not os.path.isfile(disp[:-4]+"_velocity.tif")): 
                 v, direction = calc_velocity(disp, row["dt"], medShift=medShift)
 
-                save_file([v], disp, outname = disp[:-4]+"_velocity.tif")
+                save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
         else:
             print(f"Warning: Disparity file {disp} not found. Skipping velocity calculation...")
     
@@ -295,7 +295,7 @@ def compare_two_aois(matchfile, aoi, level=3, prefixext="L3B"):
 
 
 
-def get_variance(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
+def get_std_iqr(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
     
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
@@ -304,17 +304,20 @@ def get_variance(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
     df["id_sec"] = df.sec.apply(get_scene_id)
     df["date_ref"] = df.id_ref.apply(get_date)
     df["date_sec"] = df.id_sec.apply(get_date)
+    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
     
     if os.path.isfile("./temp.tif"):
         os.remove("./temp.tif")
         
-    varsdx = []
-    varsdy = []
+    stdsdx = []
+    stdsdy = []
+    iqrsdx = []
+    iqrsdy = []
     
     for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
-        fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
-        vardx = np.nan
-        vardy = np.nan
+        fn = os.path.join(row.path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
+        stddx = np.nan
+        stddy = np.nan
         if os.path.isfile(fn):
             
             dx = read_file(fn,1)
@@ -340,16 +343,25 @@ def get_variance(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
                 dx[mask == 0] = np.nan
                 dy[mask == 0] = np.nan
             
-            vardx = np.nanvar(dx)
-            vardy = np.nanvar(dy)
+            stddx = np.nanstd(dx)
+            stddy = np.nanstd(dy)
+            iqrx = np.nanpercentile(dx,75)-np.nanpercentile(dx,25)
+            iqry = np.nanpercentile(dy,75)-np.nanpercentile(dy,25)
+        else:
+            print(f"File {fn} not found. Skipping ...")
 
-        varsdx.append(vardx)
-        varsdy.append(vardy)
+        stdsdx.append(stddx)
+        stdsdy.append(stddy)
+        iqrsdx.append(iqrx)
+        iqrsdy.append(iqry)
         
-    df["var_dx"] = varsdx
-    df["var_dy"] = varsdy
+    df["std_dx"] = stdsdx
+    df["std_dy"] = stdsdy
+    df["iqr_dx"] = iqrsdx
+    df["iqr_dy"] = iqrsdy
     
-    df.to_csv(matchfile[:-4]+"_offset_variance.csv", index = False)
+    df = df.drop(columns = ["path"])
+    df.to_csv(matchfile[:-4]+"_offset_std.csv", index = False)
     
     return df
     
@@ -372,7 +384,8 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
     df["id_sec"] = df.sec.apply(get_scene_id)
     df["date_ref"] = df.id_ref.apply(get_date)
     df["date_sec"] = df.id_sec.apply(get_date)
-    
+    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
+
     df["dt"]  = df.date_sec - df.date_ref
     #introduce upper timelimit
     df = df[df.dt <= datetime.timedelta(days=max_dt)].reset_index(drop = True)
@@ -395,7 +408,7 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
 
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F{ext}.tif"
+        disp = f"{row.path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F{ext}.tif"
         #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F_velocity.tif"
 
 
@@ -512,6 +525,10 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity", me
         df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F_velocity.tif"
         array_list = [np.ma.masked_invalid(read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
         
+    elif what == "direction": 
+        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F_velocity.tif"
+        array_list = [np.deg2rad(read_file(x,2)) for x in df.filenames if os.path.isfile(x)]
+        
     else: 
         df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F.tif"
 
@@ -550,23 +567,19 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity", me
                 med = np.nanmedian(masked)
                 masked = masked - med
             
-            ####TODO: remove this
-            #siguas
-            # if (np.nanmedian(masked[1300:1500, 1200:1450])<0):
-            #     masked = masked * -1
-            #del medio
-            # if (np.nanmedian(masked[1000:1200,900:1100])<0):
-            #     masked = masked * -1
-                
-            ####  
             #dx in m/yr
             array_list[i] = np.ma.masked_invalid(((masked*resolution[i])/dt[i])*365)
             
 
-
-    average_vals = np.ma.average(array_list, axis=0)
-    variance_vals = np.ma.var(array_list, axis = 0)
-    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}_{prefixext}.tif"))
+    if what != "direction":
+        average_vals = np.ma.average(array_list, axis=0)
+        variance_vals = np.ma.std(array_list, axis = 0)
+    else: #need to use circmean and circvar for angles
+        average_vals = np.rad2deg(circmean(array_list, axis=0, nan_policy="omit"))
+        variance_vals = np.rad2deg(circstd(array_list, axis=0, nan_policy="omit"))
+        
+    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}{prefixext}.tif"))
 
     
 
+    

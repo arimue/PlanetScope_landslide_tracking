@@ -122,7 +122,7 @@ def find_best_matches(df, minGroupSize = 10, mindt = 1):
 
     return groups
 
-def rate_match(infodf, matchdf, level = 3):
+def rate_match(infodf, matchdf):
     #rate existing matches, do not suggest
     #sort by reference if not already to be able to calculate scores in batches
     matchdf = matchdf.sort_values("ref").reset_index(drop = True)
@@ -130,8 +130,8 @@ def rate_match(infodf, matchdf, level = 3):
     for ref in matchdf.ref.unique():
         
         #print(ref)
-        refid = get_scene_id(ref, level = level)
-        secids = [get_scene_id(sec, level = level) for sec in matchdf.sec.loc[matchdf.ref == ref]]
+        refid = get_scene_id(ref)
+        secids = [get_scene_id(sec) for sec in matchdf.sec.loc[matchdf.ref == ref]]
         refinfo = infodf.loc[infodf.ids == refid]
         secinfo = infodf.loc[infodf.ids.isin(secids)]
         sum_va_scaled = fixed_val_scaler(refinfo.view_angle.iloc[0]+secinfo.view_angle, 0, 10)
@@ -166,15 +166,21 @@ def rate_match(infodf, matchdf, level = 3):
         # df["az_ang"] = angs
         # df["az_diff"] = df.sat_az-df.az_ang
         # df.az_diff[df.az_diff >180] = df.az_diff -180
+        #TODO: remove this
         xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{refid}*metadata.xml")
+        
         if len(xml_file)  == 1:
             
             xmldoc = minidom.parse(xml_file[0])
             ang_to_north_ref = float(xmldoc.getElementsByTagName("ps:azimuthAngle")[0].firstChild.data)
+            
+            print(ang_to_north_ref)
+            limangle_ref = 180+ang_to_north_ref
         else:
             ang_diff_ref = np.nan
             
         ang_diff_secs = []
+        limangle_secs = []
         for secid in secids:
 
             xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{secid}*metadata.xml")
@@ -183,12 +189,25 @@ def rate_match(infodf, matchdf, level = 3):
                 xmldoc = minidom.parse(xml_file[0])
                 inc_ang = float(xmldoc.getElementsByTagName("eop:incidenceAngle")[0].firstChild.data)
                 view_ang = float(xmldoc.getElementsByTagName("ps:spaceCraftViewAngle")[0].firstChild.data)
-                       
+                ang_to_north_sec = float(xmldoc.getElementsByTagName("ps:azimuthAngle")[0].firstChild.data)
+
                 ang_diff_secs.append(abs(inc_ang-view_ang))
+                
+                print(ang_to_north_sec)
+                limangle_secs.append(180+ang_to_north_sec)
             else:
                 ang_diff_secs.append(np.nan)
                 
+        if refinfo.sat_az.iloc[0] > limangle_ref:
+            ref_va = -1*refinfo.view_angle.iloc[0]
+        else:
+            ref_va = refinfo.view_angle.iloc[0]
             
+        secinfo["limang"] = limangle_secs
+        secinfo["true_va"] = secinfo.view_angle
+        secinfo.true_va[secinfo.sat_az > secinfo.limang] = secinfo.true_va*-1
+        
+        #TODO:also remove true_va stuff here
         scores.append({
             "refid": refid,
             "secid": secinfo.ids, 
@@ -196,10 +215,11 @@ def rate_match(infodf, matchdf, level = 3):
             "overlap": overlap,
             "va_sum":refinfo.view_angle.iloc[0]+secinfo.view_angle,
             "va_diff": abs(refinfo.view_angle.iloc[0]-secinfo.view_angle),
-            "az_diff": sat_az_diff})
+            "az_diff": sat_az_diff,
+            "true_va_diff":abs(ref_va-secinfo.true_va)})
             #"ang_diff_diff": [a-ang_diff_ref for a in ang_diff_secs] })
         
-    scores = pd.DataFrame.from_records(scores).explode(["secid","score", "overlap", "va_sum", "va_diff", "az_diff"]).reset_index(drop = True)
+    scores = pd.DataFrame.from_records(scores).explode(["secid","score", "overlap", "va_sum", "va_diff", "az_diff", "true_va_diff"]).reset_index(drop = True)
     return(scores)
 
 def add_offset_variance_to_rated_matches(scores, stereopath, prefix_ext = "L3B"):
@@ -288,7 +308,7 @@ def generate_matchfile_from_groups(groups, path, ext = "_3B_AnalyticMS_SR_clip_b
     return matches
 
 
-def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, level = 3, checkExistence = False):
+def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, checkExistence = False):
     
     matches = []
     df = df.sort_values("ids").reset_index(drop = True)
@@ -296,6 +316,9 @@ def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, level 
         
         exists = [os.path.isfile(path+ i+ ext) for i in df.ids]
         df = df.loc[exists].reset_index(drop = True)
+        if len(df) < 1: 
+            print("I could not find any matching scenes. Check if the provided path and file extent is correct.")
+            return
         
     for i in range(len(df)-1):
         matches.append({
@@ -309,8 +332,8 @@ def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, level 
     
     
     if dt is not None:
-        date_ref = [get_date(get_scene_id(i, level = level)) for i in matches.ref]
-        date_sec = [get_date(get_scene_id(i, level = level)) for i in matches.sec]
+        date_ref = [get_date(get_scene_id(i)) for i in matches.ref]
+        date_sec = [get_date(get_scene_id(i)) for i in matches.sec]
         good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt]
         
         matches = matches.iloc[good_dt].reset_index(drop = True)

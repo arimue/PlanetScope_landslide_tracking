@@ -33,25 +33,28 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 # df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson", minOverlap = 99)
 
 
-# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2020-01-01", date_stop = "2023-05-31")
+# gj = search.search_planet_catalog(instrument = "PSB.SD", geom = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", cloud_cover_max=0.2, date_start = "2020-01-01", date_stop = "2023-06-01")
 # df = search.refine_search_and_convert_to_csv(gj, refPoly = "/home/ariane/Documents/PlanetScope/Siguas/siguas_aoi.geojson", minOverlap = 99) 
 
 
 # matches = preprocessing.match_all(df, path = "./Siguas/L3B/randomPairs/", dt = 180, checkExistence=True)
 
-#matches = match_all(df, path = "./delMedio/L1B/group4/", ext = "_1B_AnalyticMS_b2_clip_mp_clip.tif",  level = 1, dt = 180, checkExistence=True)
+# matches = match_all(df, path = "./delMedio/L1B/group4/", ext = "_1B_AnalyticMS_b2_clip_mp_clip.tif",  level = 1, dt = 180, checkExistence=True)
 #df_elements = df.sample(n=10)
-#matches = preprocessing.match_all(df_elements, path = "./Siguas/L3B/")
+# matches = preprocessing.match_all(df_elements, path = "./Siguas/L3B/")
 #matches = preprocessing.match_all(df, path = "./delMedio/L3B/group2/", checkExistence=True, dt = 180)
+# matches = pd.read_csv("./Siguas/L3B/matches_stable.csv")
 # scores = preprocessing.rate_match(df, matches)
-# scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores.csv", index = False)
+#scores.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/matches_stable_scores_with_true_va.csv", index = False)
 
 # groups = preprocessing.find_best_matches(df, mindt = 30, minGroupSize = 5)
 # groups = groups.loc[groups.group_id.isin([5,9])].reset_index(drop = True)
-# files = glob.glob("/home/ariane/Documents/PlanetScope/delMedio/L3B/*_b2.tif")
-# ids = [get_scene_id(f,level = 3) for f in files]
-# groups = groups.loc[groups.ids.isin(ids)].reset_index(drop = True)
-# groups.to_csv("/home/ariane/Documents/PlanetScope/delMedio/L3B/groupinfo.csv", index = False)
+
+
+# files = glob.glob("/home/ariane/Documents/PlanetScope/Siguas/L3B/*_b2.tif")
+# ids = [get_scene_id(f) for f in files]
+# groups = df.loc[df.ids.isin(ids)].reset_index(drop = True)
+# groups.to_csv("/home/ariane/Documents/PlanetScope/Siguas/L3B/stable_groupinfo.csv", index = False)
 
 # groupsm = pd.DataFrame()
 # i = 1
@@ -85,9 +88,9 @@ demname = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/MinaPurna/DEM
 
 # stable = search.suggest_reference_and_stable_pair(df, max_day_diff = 20)
 
-#files = glob.glob("/home/ariane/Downloads/Independent_*/PSScene/*AnalyticMS.tif")
-# files = glob.glob("/home/ariane/Downloads/delMedio_addGroup*/PSScene/*AnalyticMS_SR_clip.tif")
-# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/delMedio/L3B/group2/", bandNr = 2)
+# files = glob.glob("/home/ariane/Downloads/Siguas_L1B_pt2*/PSScene/*AnalyticMS.tif")
+# # files = glob.glob("/home/ariane/Downloads/delMedio_addGroup*/PSScene/*AnalyticMS_SR_clip.tif")
+# all_files = preprocessing.preprocess_scenes(files, outpath = "/home/ariane/Documents/PlanetScope/Siguas/L1B/group4/", bandNr = 2)
 
 # #all_files = glob.glob("./MinaPurna/L1B/*_b2.tif")
 #reference = "./MinaPurna/L1B/20220823_133636_33_2465_1B_AnalyticMS_b2.tif"
@@ -126,7 +129,7 @@ ysize = 3300
 
 #correlate L3B data
 ###################################################################################################################
-# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L1B/group4/all_matches.csv")
+# df = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv")
 # df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
 
 # for i in range(len(df)):
@@ -147,10 +150,12 @@ ysize = 3300
 # postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/group3/all_matches.csv", prefixext="L3B")
 # postprocessing.calc_velocity_L3B("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", prefixext="L3B")
 
-for group in [2,8,10]:
-    postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dx", prefixext = "L3B_polyfit")
-    postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dy", prefixext = "L3B_polyfit")
-    postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "velocity", prefixext = "L3B_polyfit")
+# for group in [2,8,10]:
+    # postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dx", prefixext = "L3B_polyfit")
+    # postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "dy", prefixext = "L3B_polyfit")
+    # postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "velocity", prefixext = "L3B_polyfit")
+    # postprocessing.stack_rasters_weightfree(f"/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/matches_group{group}.csv", what = "direction", prefixext = "L3B_polyfit")
+
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dx")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "dy")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/delMedio/L3B/random/all_matches.csv", what = "velocity")
@@ -167,12 +172,9 @@ for group in [2,8,10]:
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dx", prefixext = "L3B_polyfit")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "dy", prefixext = "L3B_polyfit")
 # postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "velocity", prefixext = "L3B_polyfit")
+# postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L3B/randomPairs/matches_randomPairs.csv", what = "direction", prefixext = "L3B_polyfit")
 
 #######################################################################################################################
-# infodf = pd.read_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/info_taton_scenes.csv")
-# scores = preprocessing.rate_match(infodf, df)
-# scores = preprocessing.add_offset_variance_to_rated_matches(scores, stereopath = "/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/stereo/")
-# scores.to_csv("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/TatonDunas/L3B/var_stats.csv", index = False)
 
 
 
@@ -187,22 +189,37 @@ for group in [2,8,10]:
 
 # matchfile = "./Siguas/L3B/randomPairs/matches_randomPairs.csv"
 # #aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
-aoi = "./delMedio/landslide_mask.geojson"
+# aoi = "./delMedio/landslide_mask.geojson"
+aoi = "./Siguas/siguas_aoi.geojson"
 #demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_NASADEM_epsg32720_align_copy.tif"
 demname = "./DEMdata/Siguas/final_aligned_PlanetDEM_epsg32718.tif"
 # amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
 
-# files = glob.glob("./delMedio/L1B/group4/*_b2.tif")
-# orthorectify_L1B(files, demname, aoi, epsg = 32718, amespath = amespath, pad = 400)
+# files = glob.glob("./Siguas/L1B/group4/*_b2.tif")
+# preprocessing.orthorectify_L1B(files, demname, aoi, epsg = 32718, amespath = amespath, pad = 400)
+#matches = preprocessing.match_all(df, path = "./Siguas/L1B/group4/", ext = "_1B_AnalyticMS_b2_clip_mp_clip.tif", dt = 180, checkExistence=True)
 
     
 #out = postprocessing.compare_two_aois(matchfile, aoi, level = 3, prefixext = "L3B")
 # aoi = "./delMedio/landslide_mask.geojson"
-# for group in [1,2,3]:
-#     matchfile = f"./delMedio/L3B/group{group}/all_matches.csv"
-#     #core.apply_polyfit(matchfn, level = 3, prefix_ext= "L3B", order = 2, demname = demname)
 
-#     postprocessing.get_stats_in_aoi(matchfile, level = 3, aoi = aoi,  prefixext = "L3B", max_dt = 10000, take_velocity = True)
+
+# for group in ["group1","group2","group3", "random"]:
+#     # files = glob.glob(f"./delMedio/L3B/{group}/stereo/*F_polyfit.tif")
+#     # for f in files:
+#     #     os.rename(f, f[:-14]+"_polyfit-F.tif")
+#     if group == "random":
+#         matchfile = f"./delMedio/L3B/{group}/all_matches_no2803.csv"
+#     else:
+#         matchfile = f"./delMedio/L3B/{group}/all_matches.csv"
+#     #core.apply_polyfit(matchfile, prefix_ext= "L3B", order = 2, demname = demname)
+#     #postprocessing.calc_velocity_wrapper(matchfile, prefixext="L3B_polyfit", overwrite= True,  medShift = False)
+#     postprocessing.stack_rasters_weightfree(matchfile, what = "velocity", prefixext = "L3B_polyfit")
+#     postprocessing.stack_rasters_weightfree(matchfile, what = "dx", prefixext = "L3B_polyfit")
+#     postprocessing.stack_rasters_weightfree(matchfile, what = "dy", prefixext = "L3B_polyfit")
+#     postprocessing.stack_rasters_weightfree(matchfile, what = "direction", prefixext = "L3B_polyfit")
+
+#     #postprocessing.get_stats_in_aoi(matchfile, level = 3, aoi = aoi,  prefixext = "L3B", max_dt = 10000, take_velocity = True)
 
 # matchfile = "./delMedio/L1B/group4/all_matches_no2803.csv"
 # postprocessing.stack_rasters_weightfree(matchfile, prefixext="_L1B_polyfit", what = "velocity")
@@ -222,18 +239,48 @@ demname = "./DEMdata/Siguas/final_aligned_PlanetDEM_epsg32718.tif"
 
 #postprocessing.calc_velocity_L3B(matchfile, prefixext="_L1B_polyfit", medShift = False)
 
-# for group in [2,8,10]:
-#     matchfile = f"./Siguas/L3B/matches_group{group}.csv"
-#     core.apply_polyfit(matchfile, prefix_ext= "L3B", order = 2, demname = demname)
-#     postprocessing.calc_velocity_L3B(matchfile, prefixext="L3B_polyfit", medShift = False)
-    
-#postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "L3B_polyfit", max_dt = 10000, take_velocity = True)
+##################compare std to sun position#######################################
+# out = pd.DataFrame()
 
-# matchfile = "./Siguas/L1B/matches_comp_toL1B.csv"
-# core.apply_polyfit(matchfile, prefix_ext= "_noshift_20220702_145351_89_240c_20220706_144107_59_24a3_ck45-DEM_xyzaligned_it2", order = 2, demname = demname)
+# for group in ["group1", "group2", "group3", "random"]:
+#     matchfile = f"./delMedio/L3B/{group}/all_matches.csv"
+#     df = pd.read_csv(matchfile)
+#     df["type"] = group
+#     out = pd.concat([out,df])
+
+    
+# out.to_csv("./delMedio/L3B/allpairs.csv")
+
+# postprocessing.get_std_iqr("./delMedio/L3B/allpairs.csv", prefixext = "L3B")
+# postprocessing.get_std_iqr("./Siguas/L3B/allpairs.csv", prefixext = "L3B")
+# infodf = df.copy()
+# df = pd.read_csv("delMedio/L3B/allpairs_offset_std.csv")
+# merged_df = df.merge(infodf[['ids', 'sun_azimuth', 'sun_elevation']], left_on='id_ref', right_on='ids', how='left')
+# merged_df = merged_df.merge(infodf[['ids', 'sun_azimuth', 'sun_elevation']], left_on='id_sec', right_on='ids', how='left')
+# merged_df.to_csv("delMedio/L3B/allpairs_suninfo.csv", index = False)
+#######################################################################################
+
+
+    # core.apply_polyfit(matchfile, prefix_ext= "L3B", order = 2, demname = demname)
+    #postprocessing.calc_velocity_wrapper(matchfile, prefixext="L3B_polyfit", overwrite= True,  medShift = False)
+    
+
+# matchfile = f"./Siguas/L3B/randomPairs/matches_randomPairs.csv"    
+# postprocessing.calc_velocity_wrapper(matchfile, prefixext="L3B_polyfit", overwrite= True,  medShift = False)
+
+# aoi = "Siguas/landslide_mask_lower.geojson"
+# matchfile = "Siguas/L3B/allpairs.csv"
+# postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "L3B_polyfit", max_dt = 10000, take_velocity = True)
+
+matchfile = "./Siguas/L1B/group4/all_matches.csv"
+#core.apply_polyfit(matchfile, prefix_ext= "_L1B", order = 2, demname = demname)
 
 #matchfile = "./delMedio/L1B/group4/all_matches_no2803.csv"
-#postprocessing.calc_velocity_L3B(matchfile, prefixext="_L1B_polyfit", medShift = False)
+#.calc_velocity_wrapper(matchfile, prefixext="_L1B_polyfit", medShift = False)
+postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "dx", prefixext = "_L1B_polyfit")
+postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "dy", prefixext = "_L1B_polyfit")
+postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "velocity", prefixext = "_L1B_polyfit")
+postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "direction", prefixext = "_L1B_polyfit")
 
 
 #postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "_L1B_polyfit", max_dt = 10000, take_velocity = True)
