@@ -268,19 +268,20 @@ demname = "./DEMdata/Siguas/final_aligned_PlanetDEM_epsg32718.tif"
 # matchfile = f"./Siguas/L3B/randomPairs/matches_randomPairs.csv"    
 # postprocessing.calc_velocity_wrapper(matchfile, prefixext="L3B_polyfit", overwrite= True,  medShift = False)
 
-# aoi = "Siguas/landslide_mask_lower.geojson"
-# matchfile = "Siguas/L3B/allpairs.csv"
-# postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "L3B_polyfit", max_dt = 10000, take_velocity = True)
+aoi = "Siguas/landslide_mask_lower.geojson"
+#matchfile = "Siguas/L3B/allpairs.csv"
+matchfile = "-"
+postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "_L1B_polyfit", max_dt = 10000, take_velocity = True)
 
-matchfile = "./Siguas/L1B/group4/all_matches.csv"
+matchfile = "./delMedio/L1B/group4/all_matches_no2803.csv"
 #core.apply_polyfit(matchfile, prefix_ext= "_L1B", order = 2, demname = demname)
 
 #matchfile = "./delMedio/L1B/group4/all_matches_no2803.csv"
-#.calc_velocity_wrapper(matchfile, prefixext="_L1B_polyfit", medShift = False)
-postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "dx", prefixext = "_L1B_polyfit")
-postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "dy", prefixext = "_L1B_polyfit")
-postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "velocity", prefixext = "_L1B_polyfit")
-postprocessing.stack_rasters_weightfree("/raid-manaslu/amueting/PhD/Project1/ImageTransformation/Siguas/L1B/group4/all_matches.csv", what = "direction", prefixext = "_L1B_polyfit")
+#postprocessing.calc_velocity_wrapper(matchfile, prefixext="_L1B_polyfit",overwrite = True, medShift = False)
+# postprocessing.stack_rasters_weightfree(matchfile, what = "dx", prefixext = "_L1B_polyfit")
+# postprocessing.stack_rasters_weightfree(matchfile, what = "dy", prefixext = "_L1B_polyfit")
+# postprocessing.stack_rasters_weightfree(matchfile, what = "velocity", prefixext = "_L1B_polyfit")
+# postprocessing.stack_rasters_weightfree(matchfile, what = "direction", prefixext = "_L1B_polyfit")
 
 
 #postprocessing.get_stats_in_aoi(matchfile, aoi = aoi,  prefixext = "_L1B_polyfit", max_dt = 10000, take_velocity = True)
