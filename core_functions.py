@@ -383,7 +383,7 @@ def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
 
     return dat
 
-def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None):
+def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow = 5, plimup = 95):
     df = pd.read_csv(matchfn)
     
     for idx, row in df.iterrows():
@@ -395,6 +395,7 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None):
         dispfn = os.path.join(path, "stereo/", prefix+"-F.tif")
        # print(dispfn)
         if os.path.isfile(dispfn):
+            print(dispfn)
             #print(idx)
             dx = read_file(dispfn, b = 1)
             dy = read_file(dispfn, b = 2)
@@ -408,8 +409,8 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None):
             # ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
             # ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
             
-            dxc = percentile_cut(dx.copy())
-            dyc = percentile_cut(dy.copy())
+            dxc = percentile_cut(dx.copy(), plow = plimlow, pup = plimup)
+            dyc = percentile_cut(dy.copy(), plow = plimlow, pup = plimup)
             
                         
             xgrid, ygrid = np.meshgrid(np.arange(0,dx.shape[1], 1), np.arange(0, dx.shape[0], 1))

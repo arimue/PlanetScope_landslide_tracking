@@ -449,7 +449,7 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
 
 
         
-def get_stats_for_entire_raster(matchfile, take_velocity = True):
+def get_stats_for_entire_raster(matchfile, prefixext = "L3B", take_velocity = True):
     #good for heatmaps
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
@@ -460,29 +460,28 @@ def get_stats_for_entire_raster(matchfile, take_velocity = True):
     df["id_sec"] = df.sec.apply(get_scene_id)
     df["date_ref"] = df.id_ref.apply(get_date)
     df["date_sec"] = df.id_sec.apply(get_date)
-    
+    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
+
     df["dt"]  = df.date_sec - df.date_ref
 
     #extract statistics from disparity files
     if take_velocity:
         print("Getting velocity stats...")
-        ext = "_imgspace_velocity_mp"
-        stats = np.zeros((len(df), 3))
+        prefixext += "_velocity"
+        stats = np.zeros((len(df), 5))
         stats[:] = np.nan
-        colnames = ["v_median", "v_p25", "v_p75"]
+        colnames = ["v_median", "v_p25", "v_p75", "v_mean", "v_std"]
 
     else: 
-        print("Getting mapprojected dx/dy stats...") #use the mapprojjected version to make sure that raster res is exactly 3 m 
-        ext = "_mp"
-        stats = np.zeros((len(df), 6))
+        print("Getting dx/dy stats...") #use the mapprojected version to make sure that raster res is exactly 3 m 
+        stats = np.zeros((len(df), 10))
         stats[:] = np.nan
-        colnames = ["dx_median", "dx_p25", "dx_p75", "dy_median", "dy_p25", "dy_p75"]
+        colnames = ["dx_median", "dx_p25", "dx_p75", "dx_mean", "dx_std", "dy_median", "dy_p25", "dy_p75", "dy_mean", "dy_std",]
 
 
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_remap-F{ext}.tif"
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+        disp = os.path.join(row.path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
 
         if os.path.isfile(disp):
             if take_velocity:
@@ -490,21 +489,35 @@ def get_stats_for_entire_raster(matchfile, take_velocity = True):
                 stats[index, 0] = np.nanmedian(vel)
                 stats[index, 1] = np.nanpercentile(vel, 25)
                 stats[index, 2] = np.nanpercentile(vel, 75)
+                stats[index, 3] = np.nanpmean(vel)
+                stats[index, 4] = np.nanstd(vel)
             else:
+                count = read_meta(disp)["count"]
+                
                 dx = read_file(disp)
+                dy = read_file(disp, b = 2)
+                
+                if count == 3:
+                    mask = read_file(disp, b = 3)
+                    dx[mask == 0] = np.nan
+                    dy[mask == 0] = np.nan
                 stats[index, 0] = np.nanmedian(dx)
                 stats[index, 1] = np.nanpercentile(dx, 25)
                 stats[index, 2] = np.nanpercentile(dx, 75)
-                dy = read_file(disp)
-                stats[index, 3] = np.nanmedian(dy)
-                stats[index, 4] = np.nanpercentile(dy, 25)
-                stats[index, 5] = np.nanpercentile(dy, 75)
+                stats[index, 3] = np.nanmean(dx)
+                stats[index, 4] = np.nanstd(dx)
+                
+                stats[index, 5] = np.nanmedian(dy)
+                stats[index, 6] = np.nanpercentile(dy, 25)
+                stats[index, 7] = np.nanpercentile(dy, 75)
+                stats[index, 8] = np.nanmean(dy)
+                stats[index, 9] = np.nanstd(dy)
+
             
     out = pd.DataFrame(stats, columns = colnames)
     out = pd.concat([df, out], axis = 1)
 
-    out.to_csv(f"{path}/stats{ext}.csv", index = False)
-    
+    out.to_csv(f"{df.path.iloc[0]}/stats{prefixext}.csv", index = False)
     
 
 
