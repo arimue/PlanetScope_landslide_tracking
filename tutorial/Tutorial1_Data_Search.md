@@ -15,6 +15,6 @@ searchfile = search.search_planet_catalog(instrument = "PSB.SD", aoi = aoi, clou
 ```
 Executing this code will provide you with a new GeoJSON file (search.geojson) that stores the footprints and metadata of all scenes that match your filter criteria. You can open this in QGIS:
 
-<img src='./figures/search1.jpeg' width='25'>
+<img src='./figures/search1.jpeg' width='250'>
 
 
