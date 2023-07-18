@@ -15,8 +15,8 @@ import glob, os
 import numpy as np
 import helper_functions as helper
 
-work_dir = "/home/ariane/Documents/PlanetScope/Rosas/"
-aoi = os.path.join(work_dir,"rosas_aoi.geojson") #TODO: check that AOI is in EPSG:4326, else reproject
+work_dir = "./tutorial/"
+aoi = os.path.join(work_dir,"test_aoi.geojson") #TODO: check that AOI is in EPSG:4326, else reproject
 instrument = "PSB.SD"
 
 searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.3, date_start = "2022-11-01", date_stop = "2023-05-30")
