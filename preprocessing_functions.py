@@ -62,54 +62,6 @@ def preprocess_scenes(files, out_path = "./", band_nr = 2): #TODO: fetch work_di
     return out
 
 
-def find_best_matches(df, minGroupSize = 10, mindt = 1):
-    pd.options.mode.chained_assignment = None 
-    
-    groups = pd.DataFrame(columns = ['ids', 'view_angle', 'gsd', 'sat_az', 'quality', 'datetime', 'date','group_id'])
-    group_id = 0
-    
-    df = df.reset_index(drop = True)
-    for idx in range(len(df)):
-        scene = df.iloc[[idx]]
-    
-        comp = df.copy()
-        comp = comp.loc[~comp.ids.isin(scene.ids)]
-        comp = comp.loc[~comp.ids.isin((groups.ids))].reset_index(drop = True)
-        comp["sum_va_scaled"] = helper.fixed_val_scaler(comp.view_angle+scene.view_angle.iloc[0], 0, 10)
-        comp["diff_va_scaled"] = helper.fixed_val_scaler(abs(comp.view_angle-scene.view_angle.iloc[0]), 0, 5)
-        comp["sat_az_diff"] = abs(comp.sat_az - scene.sat_az.iloc[0])
-        comp.sat_az_diff[comp.sat_az_diff>180] = abs(360-comp.sat_az_diff[comp.sat_az_diff>180])
-        comp["sat_az_diff_scaled"] = helper.fixed_val_scaler(comp.sat_az_diff, 0,180)
-        comp["score"] = 1.5 - (comp.sum_va_scaled * comp.sat_az_diff_scaled + comp.diff_va_scaled) 
-        
-        good_matches = comp.loc[comp.score >= 1.4]
-        good_matches = good_matches[df.columns]
-        
-
-        if len(good_matches)>minGroupSize:             
-            good_matches = pd.concat([good_matches, scene])
-            good_matches["group_id"] = group_id
-            group_id += 1
-            groups = pd.concat([groups,good_matches], ignore_index=True)
-            
-        
-    if mindt > 1:
-        old_groups = groups.copy()
-        groups = pd.DataFrame(columns = ['ids', 'view_angle', 'gsd', 'sat_az', 'quality', 'datetime', 'date','group_id'])
-
-        for gi in range(group_id):
-            #print(gi)
-            group = old_groups.loc[old_groups.group_id == gi]
-            group = group.sort_values("datetime").reset_index(drop = True)
-            #discard scenes to stay within dt limits
-            dt = group.datetime.diff()
-            dt.iloc[0] = datetime.timedelta(days = mindt)
-            group = group.loc[dt >= datetime.timedelta(days = mindt)]
-            groups = pd.concat([groups,group], ignore_index=True)
-            
-    
-
-    return groups
 
 def rate_match(infodf, matchdf):
     #rate existing matches, do not suggest

@@ -127,17 +127,19 @@ def search_planet_catalog(instrument, aoi = None, ids = None, date_start = "2010
     return f"{path}search.geojson"
 
 
-def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orbit = "NE", min_overlap = 99):
+def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orbit = "NE", min_overlap = 99, az_angle = 10):
     """
     Filter the result from search_planet_catalog to have images that overlap the AOI polygon by at least a minimum percentage.
     Filter data by orbit (only relevant for Dove-C).
-
+    Calculate true view angle considering look direction. 
+    
     Args:
         searchfile (str): Path to the search file.
         aoi (str): Path to the reference polygon GeoJSON file.
         instrument (str): Instrument name. Not relevant if not PS2. (default: "PSB.SD"). 
         orbit (str): Orbit direction. Not relevant if not PS2. ("NE" for Northeast, "NW" for Northwest) (default: "NE").
-        min_overlap (int): Minimum overlap percentage (default: 99).
+        min_overlap (int or float): Minimum overlap percentage (default: 99).
+        az_angle (int or float): Estimated azimuth angle (azAngle in XML metadata), i.e. flight line angle to north (default: 10) 
 
     Returns:
         pandas.DataFrame: DataFrame containing the filtered information.
@@ -156,11 +158,17 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
                        "datetime": [datetime.datetime.strptime(f["properties"]["acquired"],"%Y-%m-%dT%H:%M:%S.%fZ") for f in features], "footprint":[f["geometry"]["coordinates"][0] for f in features], "sun_azimuth":[f["properties"]["sun_azimuth"] for f in features],"sun_elevation":[f["properties"]["sun_elevation"] for f in features]})
     df["date"] = df['datetime'].dt.date
     
+    #calculating true view angle  
+    # to distinguish right from left looking, we assume an azimuth angle (scan line angle to north) of 10 degrees (typically ranges between 7 and 12 degrees)
+    #for precise info, xml metadata would need to be downloaded, but using 10 degrees shound be sufficient in 99% of cases
+  
+    df["true_view_angle"] = df.view_angle
+    df.true_view_angle[(df.sat_az>(180+az_angle)) | (df.sat_az<(az_angle))] = df.true_view_angle*-1
+    
     try: #remove old searchfile
         os.remove(searchfile)
     except OSError:
         pass
-    
     
     print("Updating searchfile...")
     with open(searchfile, 'a') as outfile:
@@ -171,6 +179,62 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
     
     print(f"Found {len(features)} scenes covering min. {min_overlap}% of the given AOI.")
     return df
+
+
+def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_dt = 1):
+    """
+    Group scenes that fulfill search criteria into groups with a common satellite perspective.
+
+    Args:
+        df (pandas.DataFrame): DataFrame containing scene information.
+        va_diff_thresh (float): True view angle threshold for considering scenes to have a common perspective (default: 0.5).
+        min_group_size (int): Minimum number of scenes required to form a group (default: 5).
+        min_dt (int): Minimum temporal baseline between scenes in a group (default: 1).
+
+    Returns:
+        pandas.DataFrame: DataFrame containing grouped scenes.
+
+    """
+    pd.options.mode.chained_assignment = None 
+    
+    groups = pd.DataFrame(columns = [*df.columns,'group_id'])
+    group_id = 0
+    
+    df = df.reset_index(drop = True)
+    for idx in range(len(df)):
+        scene = df.iloc[[idx]]
+    
+        comp = df.copy()
+        comp = comp.loc[~comp.ids.isin(scene.ids)]
+        comp = comp.loc[~comp.ids.isin((groups.ids))].reset_index(drop = True) #do not double assign scenes to groups
+        comp["va_diff"] = abs(comp.true_view_angle - scene.true_view_angle.iloc[0])
+        good_matches = comp.loc[comp.va_diff <= va_diff_thresh]
+        good_matches = good_matches[df.columns] #remove va_diff col
+
+        if len(good_matches) >= min_group_size:     
+
+            good_matches = pd.concat([good_matches, scene])
+            good_matches["group_id"] = group_id
+            group_id += 1
+            groups = pd.concat([groups,good_matches], ignore_index=True)
+            
+    if min_dt > 1:
+        old_groups = groups.copy()
+        groups = pd.DataFrame(columns =  [*df.columns,'group_id'])
+
+        for gi in range(group_id):
+
+            group = old_groups.loc[old_groups.group_id == gi]
+            group = group.sort_values("datetime").reset_index(drop = True)
+            #discard scenes to stay within dt limits
+            dt = group.datetime.diff()
+            dt.iloc[0] = datetime.timedelta(days = min_dt)
+            group = group.loc[dt >= datetime.timedelta(days = min_dt)]
+            groups = pd.concat([groups,group], ignore_index=True)
+            
+    #TODO: could update the search.json file to only keep relevant scenes and add group attribute
+            
+    return groups
     
 def download_xml_metadata(ids, out_dir = None):
     """

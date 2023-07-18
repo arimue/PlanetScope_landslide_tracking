@@ -21,3 +21,4 @@ instrument = "PSB.SD"
 
 searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.2, date_start = "2022-12-01", date_stop = "2023-05-30")
 df = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, min_overlap = 99)
+groups = search.find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_dt = 1)
