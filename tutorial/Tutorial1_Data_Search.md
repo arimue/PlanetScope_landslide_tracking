@@ -3,7 +3,7 @@
 This tutorial walks you through the data selection process. We will access and search the PlanetScope online catalog via the [Planet Software Development Kit (SDK) for Python](https://github.com/planetlabs/planet-client-python) and refine the search to form groups of images with common satellite perspective. Please make sure that you have authenticated with the Planet server using your Planet account (see [Documentation](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-4-sign-on-to-your-account). Note: The result will be a recommendation of scenes to download. You can download these automatically via the Planet API, however, I do recommend to check all imagery visually in the Planet Explorer, to make sure your target is not cloud covered.
 
 ## Step 1: Draw your area of interest (AOI)
-Create a polygon that constrains your area of interest and store it as a GeoJSON. You can use QGIS for this. Make sure to use EPSG:4326 as a coordinate reference system.  
+Create a polygon that constrains your area of interest and store it as a GeoJSON. You can use QGIS for this. Make sure to cover a substantial amount of stable terrain surrounding your moving target and use EPSG:4326 as a coordinate reference system.  
 
 ## Step 2: Conduct a rough search
 All functions related to data search are stored under `planet_search_functions.py`. Here is an example for a first-order search for PlanetScope data acquired between March 2020 and June 2023 by PSB.SD instruments over the given AOI:
@@ -15,6 +15,11 @@ searchfile = search.search_planet_catalog(instrument = "PSB.SD", aoi = aoi, clou
 ```
 Executing this code will provide you with a new GeoJSON file (search.geojson) that stores the footprints and metadata of all scenes that match your filter criteria. You can open this in QGIS:
 
-<img src='./figures/search1.jpeg' width='250'>
+<img src='./figures/search1.jpeg' width='500'>
 
+## Step 3: Refine your AOI (optional)
+If you have drawn a rectangular AOI like me, you may want to adjust it to the scan line direction of the PlanetScope data. This increases the chances of a scene to cover the full AOI which will be filter criteria in the subsequent step. To rotate your polygon, you can use the Geometry Edit tools in QGIS. Save your edits and then rerun the search.
 
+<img src='./figures/search2.jpeg' width='500'>
+
+## Step 4: Filter by AOI coverage and convert to pandas DataFrame
