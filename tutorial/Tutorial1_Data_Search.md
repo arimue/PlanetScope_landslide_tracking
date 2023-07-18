@@ -14,5 +14,6 @@ aoi = "./tutorial/test_aoi.geojson"
 searchfile = search.search_planet_catalog(instrument = "PSB.SD", aoi = aoi, cloud_cover_max=0.1, date_start = "2020-03-01", date_stop = "2023-06-30")
 ```
 Executing this code will provide you with a new GeoJSON file (search.geojson) that stores the footprints and metadata of all scenes that match your filter criteria. You can open this in QGIS:
-![AOI and footprints of data that fit search criteria.](./figures/search1.jpeg)
+
+![AOI and footprints of data that fit search criteria.](./figures/search1.jpeg =250x)
 
