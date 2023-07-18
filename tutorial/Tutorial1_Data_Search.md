@@ -1,6 +1,6 @@
 # Tutorial 1: Searching for PlanetScope data
 
-This tutorial walks you through the data selection process. We will access and search the PlanetScope online catalog via the [Planet Software Development Kit (SDK) for Python](https://github.com/planetlabs/planet-client-python) and refine the search to form groups of images with common satellite perspective. Please make sure that you have authenticated with the Planet server using your Planet account (see [Documentation](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-4-sign-on-to-your-account). Note: The result will be a recommendation of scenes to download. You can download these automatically via the Planet API, however, I do recommend to check all imagery visually in the [Planet Explorer](https://www.planet.com/explorer/), to make sure your target is not cloud covered.
+This tutorial walks you through the data selection process to find PlanetScope L3B data acquired from common satellite perspectives. We will access and search the PlanetScope online catalog via the [Planet Software Development Kit (SDK) for Python](https://github.com/planetlabs/planet-client-python) and refine the search to form groups of images with common satellite perspective. Please make sure that you have authenticated with the Planet server using your Planet account (see [Documentation](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-4-sign-on-to-your-account). Note: The result will be a recommendation of scenes to download. You can download these automatically via the Planet API, however, I do recommend to check all imagery visually in the [Planet Explorer](https://www.planet.com/explorer/), to make sure your target is not cloud covered.
 
 ## Step 1: Draw your area of interest (AOI)
 Create a polygon that constrains your area of interest and store it as a GeoJSON. You can use QGIS for this. Make sure to cover a substantial amount of stable terrain surrounding your moving target and use EPSG:4326 as a coordinate reference system.  
@@ -50,5 +50,5 @@ Here, I use the previously obtained DataFrame to form groups that have a minimum
 
 ## Step 6: Download your data via the [Planet Explorer](https://www.planet.com/explorer/)
 
-As mentioned earlier, I recommend to visually inspect the suggested scenes in the [Planet Explorer](https://www.planet.com/explorer/) before downloading them to ensure that your AOI is completely cloud free. Then download the data. From the available rectified assets (L3B), I always chose Surface Reflectance – 4 band. 
+As mentioned earlier, I recommend to visually inspect the suggested scenes in the [Planet Explorer](https://www.planet.com/explorer/) to ensure that your AOI is completely cloud free. Then download the data. For L3B, I worked with Surface Reflectance – 4 band from the rectified assets. 
 
