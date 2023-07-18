@@ -181,7 +181,7 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
     return df
 
 
-def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_dt = 1):
+def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_dt = 1, searchfile = None):
     """
     Group scenes that fulfill search criteria into groups with a common satellite perspective.
 
@@ -190,7 +190,7 @@ def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_d
         va_diff_thresh (float): True view angle threshold for considering scenes to have a common perspective (default: 0.5).
         min_group_size (int): Minimum number of scenes required to form a group (default: 5).
         min_dt (int): Minimum temporal baseline between scenes in a group (default: 1).
-
+        searchfile (str): path and name of search GeoJSON. Will be updated if provided. (default: None)
     Returns:
         pandas.DataFrame: DataFrame containing grouped scenes.
 
@@ -231,10 +231,29 @@ def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_d
             dt.iloc[0] = datetime.timedelta(days = min_dt)
             group = group.loc[dt >= datetime.timedelta(days = min_dt)]
             groups = pd.concat([groups,group], ignore_index=True)
+            #TODO: check if groups then still have required size
+            
+    
+    if searchfile is not None:
+        print("Updating searchfile...")
+        
+        features = [json.loads(line) for line in open(searchfile, "r")]
+        features = [f for f in features if groups.ids.str.contains(f["id"]).any()]
+        
+        os.remove(searchfile)
+        
+        with open(searchfile, 'a') as outfile:
+            for f in features:
+                f["properties"]["group_id"] = groups.group_id[groups.ids == f["id"]].iloc[0]
+                json.dump(f, outfile, indent = None)
+                outfile.write('\n')
             
     #TODO: could update the search.json file to only keep relevant scenes and add group attribute
-            
-    return groups
+    if len(groups) == 0:
+        print("Could not find sufficient scenes for groups of relevant size. Try to widen your search parameters.")
+        return
+    else:
+        return groups
     
 def download_xml_metadata(ids, out_dir = None):
     """
