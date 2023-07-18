@@ -8,70 +8,59 @@ Created on Wed Mar  1 15:55:06 2023
 
 import os, subprocess, shutil, glob, datetime
 import pandas as pd
-import planet_search_functions as search
-from helper_functions import get_date, get_scene_id, fixed_val_scaler, read_file, clip_raw, size_from_aoi, clip_mp_cutline
+import helper_functions as helper
 import numpy as np
 from tqdm import tqdm
-from pyproj import Transformer, CRS
 from shapely.geometry import Polygon
 from xml.dom import minidom
 import asp_helper_functions as asp
 
 
-def isolateBand(img, bandNr=2):
+def isolate_band(img, band_nr=2):
+    """
+    Isolate a specific band from an image and save it as a separate TIFF file.
+
+    Args:
+        img (str): Path to the input image.
+        band_nr (int): Band number to isolate (default: 2, i.e. green band).
+
+    Returns:
+        str: Path to the output isolated band image.
+
+    """
     out_dir, img_fn = os.path.split(img)
-    if not os.path.exists(f"{out_dir}/b{bandNr}/"):
-        print(f"Generating directory {out_dir}/b{bandNr}/")
-        os.makedirs(f"{out_dir}/b{bandNr}/")
-    out_img = f"{out_dir}/b{bandNr}/{img_fn[:-4]}_b{bandNr}.tif"
-    cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -b {bandNr} {img} {out_img}"
-    subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
+    band_dir = f"{out_dir}/b{band_nr}/"
+    if not os.path.exists(band_dir):
+        print(f"Generating directory {band_dir}")
+        os.makedirs(band_dir)
+    out_img = f"{band_dir}/{img_fn[:-4]}_b{band_nr}.tif"
+    cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -b {band_nr} {img} {out_img}"
+    subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return out_img
 
-def preprocess_scenes(files, outpath = "./", bandNr = 2):
+def preprocess_scenes(files, out_path = "./", band_nr = 2): #TODO: fetch work_dir globally
+    """
+    Preprocess a list of input files by isolating a specific band and copying it to the output directory.
+    
+    Args:
+        files (list): List of input file paths.
+        out_path (str): Output directory path (default: "./").
+        band_nr (int): Band number to isolate (default: 2).
+    
+    Returns:
+        list: List of output file paths.
+    
+    """
     out = []
     for file in files:
-        out_image = isolateBand(file, bandNr)
+        out_image = isolate_band(file, band_nr)
         _,fn = os.path.split(out_image)
-        shutil.copyfile(out_image, os.path.join(outpath,fn))
-        out.append(os.path.join(outpath,fn))
-    print("Isolated bands can now be found in " + outpath)
+        shutil.copyfile(out_image, os.path.join(out_path,fn))
+        out.append(os.path.join(out_path,fn))
+    print("Isolated bands can now be found in " + out_path)
     
     return out
 
-def orthorectify_L1B(files, demname, aoi, epsg, amespath, pad = 0):
-    ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg, gsd = 4)
-
-    for f in files: 
-        #its best to roughly clip before mapprojection, otherwise the process takes long
-        clip = clip_raw(f, ul_lon, ul_lat, xsize+pad, ysize+pad, demname)
-        mp = asp.mapproject(amespath, clip, demname, epsg = epsg)
-        #finetune clip
-        clip2 = clip_mp_cutline(mp, aoi)
-
-
-# def shortest_distance_to_line(point, line_start, line_end):
-#     #see https://stackoverflow.com/questions/39840030/distance-between-point-and-a-line-from-two-points
-#     point = np.array(point)
-#     line_start = np.array(line_start)
-#     line_end = np.array(line_end)
-
-#     # Calculate shortest distance
-#     shortest_distance = np.cross(point - line_start, line_end - line_start) / np.linalg.norm(line_end - line_start)
-
-#     return shortest_distance
-
-# def get_poi_ydistance(scene, poi, epsg):
-#     #TODO: implement epsg guesser and check in which CRS POI coords are given
-#     #transform to UTM to have differences in m
-#     proj_tr = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
-#     poi_proj = proj_tr.transform(*poi)
-#     upt1_proj = proj_tr.transform(*scene.upper_pt1)
-#     upt2_proj = proj_tr.transform(*scene.upper_pt2)
-
-#     dist_to_upper_line = shortest_distance_to_line(poi_proj, upt1_proj, upt2_proj)
-    
-#     return dist_to_upper_line
 
 def find_best_matches(df, minGroupSize = 10, mindt = 1):
     pd.options.mode.chained_assignment = None 
@@ -86,11 +75,11 @@ def find_best_matches(df, minGroupSize = 10, mindt = 1):
         comp = df.copy()
         comp = comp.loc[~comp.ids.isin(scene.ids)]
         comp = comp.loc[~comp.ids.isin((groups.ids))].reset_index(drop = True)
-        comp["sum_va_scaled"] = fixed_val_scaler(comp.view_angle+scene.view_angle.iloc[0], 0, 10)
-        comp["diff_va_scaled"] = fixed_val_scaler(abs(comp.view_angle-scene.view_angle.iloc[0]), 0, 5)
+        comp["sum_va_scaled"] = helper.fixed_val_scaler(comp.view_angle+scene.view_angle.iloc[0], 0, 10)
+        comp["diff_va_scaled"] = helper.fixed_val_scaler(abs(comp.view_angle-scene.view_angle.iloc[0]), 0, 5)
         comp["sat_az_diff"] = abs(comp.sat_az - scene.sat_az.iloc[0])
         comp.sat_az_diff[comp.sat_az_diff>180] = abs(360-comp.sat_az_diff[comp.sat_az_diff>180])
-        comp["sat_az_diff_scaled"] = fixed_val_scaler(comp.sat_az_diff, 0,180)
+        comp["sat_az_diff_scaled"] = helper.fixed_val_scaler(comp.sat_az_diff, 0,180)
         comp["score"] = 1.5 - (comp.sum_va_scaled * comp.sat_az_diff_scaled + comp.diff_va_scaled) 
         
         good_matches = comp.loc[comp.score >= 1.4]
@@ -112,7 +101,7 @@ def find_best_matches(df, minGroupSize = 10, mindt = 1):
             #print(gi)
             group = old_groups.loc[old_groups.group_id == gi]
             group = group.sort_values("datetime").reset_index(drop = True)
-        #discard scenes to comply with dt lim
+            #discard scenes to stay within dt limits
             dt = group.datetime.diff()
             dt.iloc[0] = datetime.timedelta(days = mindt)
             group = group.loc[dt >= datetime.timedelta(days = mindt)]
@@ -130,15 +119,15 @@ def rate_match(infodf, matchdf):
     for ref in matchdf.ref.unique():
         
         #print(ref)
-        refid = get_scene_id(ref)
-        secids = [get_scene_id(sec) for sec in matchdf.sec.loc[matchdf.ref == ref]]
+        refid = helper.get_scene_id(ref)
+        secids = [helper.get_scene_id(sec) for sec in matchdf.sec.loc[matchdf.ref == ref]]
         refinfo = infodf.loc[infodf.ids == refid]
         secinfo = infodf.loc[infodf.ids.isin(secids)]
-        sum_va_scaled = fixed_val_scaler(refinfo.view_angle.iloc[0]+secinfo.view_angle, 0, 10)
-        diff_va_scaled = fixed_val_scaler(abs(refinfo.view_angle.iloc[0]-secinfo.view_angle), 0, 5)
+        sum_va_scaled = helper.fixed_val_scaler(refinfo.view_angle.iloc[0]+secinfo.view_angle, 0, 10)
+        diff_va_scaled = helper.fixed_val_scaler(abs(refinfo.view_angle.iloc[0]-secinfo.view_angle), 0, 5)
         sat_az_diff = abs(refinfo.sat_az.iloc[0]-secinfo.sat_az)
         sat_az_diff[sat_az_diff>180] = abs(360-sat_az_diff[sat_az_diff>180])
-        sat_az_diff_scaled = fixed_val_scaler(sat_az_diff, 0,180)
+        sat_az_diff_scaled = helper.fixed_val_scaler(sat_az_diff, 0,180)
         score =  1.5 -(sum_va_scaled * sat_az_diff_scaled + diff_va_scaled )
         
         refPoly = Polygon([tuple(coords) for coords in refinfo.footprint.iloc[0]])
@@ -232,9 +221,9 @@ def add_offset_variance_to_rated_matches(scores, stereopath, prefix_ext = "L3B")
         prefix = row.refid + "_" + row.secid + "L3B"
         
         if os.path.isfile(stereopath+prefix+"-F.tif"):
-            dx = read_file(stereopath+prefix+"-F.tif",1)
-            dy = read_file(stereopath+prefix+"-F.tif", 2)
-            mask = read_file(stereopath+prefix+"-F.tif",3)
+            dx = helper.read_file(stereopath+prefix+"-F.tif",1)
+            dy = helper.read_file(stereopath+prefix+"-F.tif", 2)
+            mask = helper.read_file(stereopath+prefix+"-F.tif",3)
             dx[mask == 0] = np.nan
             dy[mask == 0] = np.nan
             
@@ -253,7 +242,7 @@ def add_offset_from_mask_to_rated_matches(scores, stereopath, mask, prefix_ext =
     scores = scores.reset_index(drop = True)
     dvar = np.zeros([len(scores),2])
     dvar[:] = np.nan
-    aoi_mask = read_file(mask)
+    aoi_mask = helper.read_file(mask)
     colnames  =  [d+"_"+str(i) for i in np.unique(aoi_mask) for d in ["dx", "dy"]]
 
     out = np.zeros([len(scores), len(np.unique(aoi_mask))*2])
@@ -262,9 +251,9 @@ def add_offset_from_mask_to_rated_matches(scores, stereopath, mask, prefix_ext =
         prefix = row.refid + "_" + row.secid + "L3B"
         
         if os.path.isfile(stereopath+prefix+"-F.tif"):
-            dx = read_file(stereopath+prefix+"-F.tif",1)
-            dy = read_file(stereopath+prefix+"-F.tif", 2)
-            dmask = read_file(stereopath+prefix+"-F.tif",3)
+            dx = helper.read_file(stereopath+prefix+"-F.tif",1)
+            dy = helper.read_file(stereopath+prefix+"-F.tif", 2)
+            dmask = helper.read_file(stereopath+prefix+"-F.tif",3)
             dx[dmask == 0] = np.nan
             dy[dmask == 0] = np.nan
                         
@@ -332,8 +321,8 @@ def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, checkE
     
     
     if dt is not None:
-        date_ref = [get_date(get_scene_id(i)) for i in matches.ref]
-        date_sec = [get_date(get_scene_id(i)) for i in matches.sec]
+        date_ref = [helper.get_date(helper.get_scene_id(i)) for i in matches.ref]
+        date_sec = [helper.get_date(helper.get_scene_id(i)) for i in matches.sec]
         good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt]
         
         matches = matches.iloc[good_dt].reset_index(drop = True)
@@ -341,4 +330,15 @@ def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, checkE
     matches.to_csv(path+"all_matches.csv", index = False)
     
     return matches
+
+
+def orthorectify_L1B(files, demname, aoi, epsg, amespath, pad = 0):
+    ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
+
+    for f in files: 
+        #its best to roughly clip before mapprojection, otherwise the process takes long
+        clip = helper.clip_raw(f, ul_lon, ul_lat, xsize+pad, ysize+pad, demname)
+        mp = asp.mapproject(amespath, clip, demname, epsg = epsg)
+        #finetune clip, bc clipping with RPCs is not always super exact
+        _ = helper.clip_mp_cutline(mp, aoi)
     

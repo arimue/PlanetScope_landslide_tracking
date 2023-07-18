@@ -12,7 +12,7 @@ To search for and access PlanetScope data via the API, you will need to authenti
 ### Step 1: 
 Clone the PlanetScope_landslide_tracking repository: `git clone https://github.com/UP-RS-ESP/PlanetScope_landslide_tracking`.
 ### Step 2: 
-Use conda to create a new environment and install all necessary Python packages using the given environment.yml file: `conda env create -f environment.yml` 
+Enter the cloned repository `cd PlanetScope_landslide_tracking` and use [conda](https://conda.io/projects/conda/en/latest/index.html) to create a new environment and install all necessary Python packages using the given environment.yml file: `conda env create -f environment.yml` 
 Then activate the newly created environment: `conda activate planet_landslide`
 ### Step 3: 
 Install [Ames Stereo Pipeline](https://stereopipeline.readthedocs.io/en/latest/index.html). Download the latest stable release from [GitHub](https://github.com/NeoGeographyToolkit/StereoPipeline/releases) and unzip it. Detailed instructions can be found in the [ASP](https://stereopipeline.readthedocs.io/en/latest/installation.html)
