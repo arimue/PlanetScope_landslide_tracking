@@ -198,7 +198,7 @@ ysize = 3300
 # #aoi = "./Siguas/siguas_landslide_outline_utm.geojson"
 # aoi = "./delMedio/landslide_mask.geojson"
 aoi = "./Siguas/siguas_aoi.geojson"
-#demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_NASADEM_epsg32720_align_copy.tif"
+#demname = "./DEMdata/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_output_FdemnameNASADEM_epsg32720_align_copy.tif"
 demname = "./DEMdata/Siguas/final_aligned_PlanetDEM_epsg32718.tif"
 # amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin/"
 

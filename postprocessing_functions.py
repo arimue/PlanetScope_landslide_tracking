@@ -83,11 +83,23 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     return v, direction
 
 
-def calc_velocity_wrapper(matchfile, prefixext, overwrite = False, medShift = True): 
-    df = pd.read_csv(matchfile)
-    path,_ = os.path.split(matchfile)
+def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift = True): 
     
+    if type(matches) == str:
+        try:
+            df = pd.read_csv(matches)
+            path,_ = os.path.split(matches)
 
+        except FileNotFoundError:
+            print("Could not find the provided matchfile.")
+            return
+    elif type(matches) == pd.core.frame.DataFrame:
+        df = matches.copy()
+        path,_ = os.path.split(df.ref.iloc[0])
+    else:
+        print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
+        return
+    
 
     df["id_ref"] = df.ref.apply(get_scene_id)
     df["id_sec"] = df.sec.apply(get_scene_id)
@@ -96,17 +108,20 @@ def calc_velocity_wrapper(matchfile, prefixext, overwrite = False, medShift = Tr
     
     df["dt"]  = df.date_sec - df.date_ref
     
+    
+    out = []
+    
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
-        disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif"
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F.tif"
+        disp = os.path.join(path, "disparity_maps", f"{row.id_ref}_{row.id_sec}{prefix_ext}-F.tif")
         if os.path.isfile(disp):
             if overwrite or (not os.path.isfile(disp[:-4]+"_velocity.tif")): 
                 v, direction = calc_velocity(disp, row["dt"], medShift=medShift)
-
                 save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
+                out.append(disp[:-4]+"_velocity.tif")
         else:
             print(f"Warning: Disparity file {disp} not found. Skipping velocity calculation...")
     
+    return out
 
 def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None, take_velocity = True, angles = False):
     r[r==-9999] = np.nan

@@ -85,3 +85,16 @@ dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "_L3B", order = 2, demname =
 ```
 <img src='./figures/pfit_2nd_order_elev.png'>
 
+All adjusted disparity maps will be stored in the same directory as the original filed under the name `[id_img1]_[id_img2][prefix_ext]_polyfit-F.tif`. These files do no longer contain a band for the pixel mask, as it has been applied to mask unreliable measurements and areas with nodata directly to dx and dy displacements. 
+
+## Step 5: Calculate velocity
+
+To translate the derived disparities into annual velocities, you can use `calc_velocity_wrapper()` from `postprocessing_functions.py`:
+``` python
+import postprocessing_functions as postprocessing
+
+vels = postprocessing.calc_velocity_wrapper(matches, prefix_ext = "_L3B_polyfit")
+```
+Note that you will have to add "_polyfit" to the prefix extension in order for the corrected files to be taken as input. Else the velocity calculation will be based on the original disparity maps. The function will calculate velocity and direction for the provided matches. The output will be stored as a 2-band raster called `[id_img1]_[id_img2][prefix_ext]_polyfit-F_velocity.tif` with the first band being the annual velocity and the second band the direction of displacement in degrees:
+<img src='./figures/velocity_direction.png'>
+
