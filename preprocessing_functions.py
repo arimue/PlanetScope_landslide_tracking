@@ -36,7 +36,7 @@ def isolate_band(img, band_nr=2):
     subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return out_img
 
-def preprocess_scenes(files, out_path = "./", band_nr = 2): #TODO: fetch work_dir globally
+def get_single_band(files, out_path = "./", band_nr = 2): #TODO: fetch work_dir globally
     """
     Preprocess a list of input files by isolating a specific band and copying it to the output directory.
     
