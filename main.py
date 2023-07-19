@@ -28,4 +28,5 @@ instrument = "PSB.SD"
 files = glob.glob("/home/ariane/Downloads/Siguas_L3B_fillGaps_psscene_analytic_sr_udm2/PSScene/*3B_AnalyticMS_SR_clip.tif")
 #preprocessing.get_single_band(files, out_path = "/home/ariane/Downloads/test/", band_nr = 2)
 #matches = preprocessing.match_all(work_dir, ext = "_b2.tif", dt_min = 180)
-matches = preprocessing.generate_matchfile_from_search(df, check_existence=True)
+matches = preprocessing.generate_matchfile_from_search(df, dt_min = 180, path = work_dir, check_existence=True)
+matches = preprocessing.generate_matchfile_from_groups(groups, dt_min = 180, path = work_dir, check_existence=True)

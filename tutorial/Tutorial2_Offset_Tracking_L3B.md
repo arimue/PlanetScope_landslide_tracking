@@ -30,4 +30,18 @@ matches = preprocessing.match_all(work_dir, ext = "_b2.tif", dt_min = 180)
 
 This function collects all files with the extension *_b2.tif in the provided directory and forms correlation pairs. To ensure sufficient displacement for detection, a minimum temporal baseline of 180 days is required between the acquisition of both scenes. The specific value depends on the velocity of the investigated target. It's important to note that the function only matches older scenes with newer acquisitions, preventing any duplicate pairs where both A B and B A are considered. Also, this function does not consider true view angle difference, so you need to ensure that only scenes acquired from a common perspective are in the provided directory.
 
-Alternatively, you can also use the pandas DataFrames obtained from searching the Planet catalog (see [Tutorial 1](./Tutorial1_Data_Search.md).
+Alternatively, you can also use the pandas DataFrames obtained from searching the Planet catalog (see [Tutorial 1](./Tutorial1_Data_Search.md)) for building a matchfile. This works with or without downloaded data. If you do not check for existing files, the function will provide you with the IDs from potential matches. This information can be useful for determining the approximate number of correlation pairs you would have to process when working with the filtered scenes.
+
+``` python
+#Example for matching based on search df  
+matches = preprocessing.generate_matchfile_from_search(df, dt_min = 180)
+#Example for matching based on search df and checking for existing files in the provided directory
+matches = preprocessing.generate_matchfile_from_search(df, dt_min = 180, path = work_dir, check_existence=True)
+
+#Example for matching based on group df  
+matches = preprocessing.generate_matchfile_from_groups(groups, dt_min = 180)
+#Example for matching based on group df and checking for existing files in the provided directory
+matches = preprocessing.generate_matchfile_from_groups(groups, dt_min = 180, path = work_dir, check_existence=True)
+```
+
+

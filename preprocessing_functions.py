@@ -70,12 +70,6 @@ def rate_match(infodf, matchdf):
         secids = [helper.get_scene_id(sec) for sec in matchdf.sec.loc[matchdf.ref == ref]]
         refinfo = infodf.loc[infodf.ids == refid]
         secinfo = infodf.loc[infodf.ids.isin(secids)]
-        sum_va_scaled = helper.fixed_val_scaler(refinfo.view_angle.iloc[0]+secinfo.view_angle, 0, 10)
-        diff_va_scaled = helper.fixed_val_scaler(abs(refinfo.view_angle.iloc[0]-secinfo.view_angle), 0, 5)
-        sat_az_diff = abs(refinfo.sat_az.iloc[0]-secinfo.sat_az)
-        sat_az_diff[sat_az_diff>180] = abs(360-sat_az_diff[sat_az_diff>180])
-        sat_az_diff_scaled = helper.fixed_val_scaler(sat_az_diff, 0,180)
-        score =  1.5 -(sum_va_scaled * sat_az_diff_scaled + diff_va_scaled )
         
         refPoly = Polygon([tuple(coords) for coords in refinfo.footprint.iloc[0]])
         overlap = []
@@ -85,86 +79,27 @@ def rate_match(infodf, matchdf):
             intersection = refPoly.intersection(secPoly)
             overlap.append(intersection.area/refPoly.area*100)
             
-        #add xml info
-        
-        # angs = []
-        # for i, row in df.iterrows():
-        #     xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{row.ids}*metadata.xml")
-            
-        #     if len(xml_file) == 1:
-        #         xmldoc = minidom.parse(xml_file[0])
-        #         north_ang = float(xmldoc.getElementsByTagName("ps:azimuthAngle")[0].firstChild.data)
-        #         angs.append(north_ang)
-                
-        #     else:
-        #         angs.append(np.nan)
-                
-        # df["az_ang"] = angs
-        # df["az_diff"] = df.sat_az-df.az_ang
-        # df.az_diff[df.az_diff >180] = df.az_diff -180
-        #TODO: remove this
-        xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{refid}*metadata.xml")
-        
-        if len(xml_file)  == 1:
-            
-            xmldoc = minidom.parse(xml_file[0])
-            ang_to_north_ref = float(xmldoc.getElementsByTagName("ps:azimuthAngle")[0].firstChild.data)
-            
-            print(ang_to_north_ref)
-            limangle_ref = 180+ang_to_north_ref
-        else:
-            ang_diff_ref = np.nan
-            
-        ang_diff_secs = []
-        limangle_secs = []
-        for secid in secids:
-
-            xml_file = glob.glob(f"/home/ariane/Documents/PlanetScope/test_ang_calc/{secid}*metadata.xml")
-            if len(xml_file) == 1:
-                
-                xmldoc = minidom.parse(xml_file[0])
-                inc_ang = float(xmldoc.getElementsByTagName("eop:incidenceAngle")[0].firstChild.data)
-                view_ang = float(xmldoc.getElementsByTagName("ps:spaceCraftViewAngle")[0].firstChild.data)
-                ang_to_north_sec = float(xmldoc.getElementsByTagName("ps:azimuthAngle")[0].firstChild.data)
-
-                ang_diff_secs.append(abs(inc_ang-view_ang))
-                
-                print(ang_to_north_sec)
-                limangle_secs.append(180+ang_to_north_sec)
-            else:
-                ang_diff_secs.append(np.nan)
-                
-        if refinfo.sat_az.iloc[0] > limangle_ref:
-            ref_va = -1*refinfo.view_angle.iloc[0]
-        else:
-            ref_va = refinfo.view_angle.iloc[0]
-            
-        secinfo["limang"] = limangle_secs
+      
         secinfo["true_va"] = secinfo.view_angle
-        secinfo.true_va[secinfo.sat_az > secinfo.limang] = secinfo.true_va*-1
         
-        #TODO:also remove true_va stuff here
         scores.append({
             "refid": refid,
             "secid": secinfo.ids, 
-            "score": score, 
             "overlap": overlap,
-            "va_sum":refinfo.view_angle.iloc[0]+secinfo.view_angle,
-            "va_diff": abs(refinfo.view_angle.iloc[0]-secinfo.view_angle),
-            "az_diff": sat_az_diff,
             "true_va_diff":abs(ref_va-secinfo.true_va)})
-            #"ang_diff_diff": [a-ang_diff_ref for a in ang_diff_secs] })
+
         
-    scores = pd.DataFrame.from_records(scores).explode(["secid","score", "overlap", "va_sum", "va_diff", "az_diff", "true_va_diff"]).reset_index(drop = True)
+    scores = pd.DataFrame.from_records(scores).explode(["secid","overlap","true_va_diff"]).reset_index(drop = True)
     return(scores)
 
-def generate_matchfile_from_search(df, path = "./",  ext = "_b2.tif", check_existence = False):
+def generate_matchfile_from_search(df, dt_min = None, path = "./",  ext = "_b2.tif", check_existence = False):
     
     """
     Matches PlanetScope scenes from the provided dataframe.
 
     Args:
         df (pandas.DataFrame): DataFrame containing scene information.
+        dt_min (int): Minimum number of days between reference and secondary scenes (default: None).
         path (str): Path to the scenes.
         ext (str): File extension (default: "_b2.tif").
         check_existence (bool): Check if the scenes exist in the given path (default: False).
@@ -194,6 +129,16 @@ def generate_matchfile_from_search(df, path = "./",  ext = "_b2.tif", check_exis
             "sec": list(df.ids.iloc[i+1:])})
         
     matches = pd.DataFrame.from_records(matches).explode("sec")
+    
+    if dt_min is not None:
+        date_ref = [helper.get_date(i) for i in matches.ref]
+        date_sec = [helper.get_date(i) for i in matches.sec]
+        good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt_min]
+        matches = matches.iloc[good_dt].reset_index(drop = True)
+        
+        if len(matches) == 0:
+            print("It looks like there are no more suitable matches if I apply your minimal temporal baseline. Try to lower it.")
+            return
         
     if check_existence:
         matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
@@ -209,13 +154,14 @@ def generate_matchfile_from_search(df, path = "./",  ext = "_b2.tif", check_exis
 
     return matches
 
-def generate_matchfile_from_groups(groups, path = "./",  ext = "_b2.tif", check_existence = False):
+def generate_matchfile_from_groups(groups, dt_min = None, path = "./",  ext = "_b2.tif", check_existence = False):
     
     """
     Matches PlanetScope scenes in groups with a common perspective based on the provided dataframe.
 
     Args:
         groups (pandas.DataFrame): DataFrame containing grouped scenes.
+        dt_min (int): Minimum number of days between reference and secondary scenes (default: None).
         path (str): Path to the scenes (default: "./").
         ext (str): File extension (default: "_b2.tif").
         check_existence (bool): Whether to check if the scenes exist in the given path (default: False).
@@ -247,6 +193,16 @@ def generate_matchfile_from_groups(groups, path = "./",  ext = "_b2.tif", check_
                 "group": group})
             
     matches = pd.DataFrame.from_records(matches).explode("sec", "group")
+    
+    if dt_min is not None:
+        date_ref = [helper.get_date(i) for i in matches.ref]
+        date_sec = [helper.get_date(i) for i in matches.sec]
+        good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt_min]
+        matches = matches.iloc[good_dt].reset_index(drop = True)
+        
+        if len(matches) == 0:
+            print("It looks like there are no more suitable matches if I apply your minimal temporal baseline. Try to lower it.")
+            return
         
     if check_existence:
         matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
