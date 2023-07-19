@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Mon Feb 27 17:54:21 2023
 
-@author: ariane
-"""
-from helper_functions import read_file,rasterValuesToPoint, warp, read_meta, clip_raw, get_epsg, get_scene_id, copy_rpcs, save_file, min_max_scaler, match_raster_size_and_res
+import helper_functions as helper
 import numpy as np
 import matplotlib.pyplot as plt
 import asp_helper_functions as asp
-import multiprocessing
 import scipy.optimize
 import pandas as pd
 import scipy.ndimage
 import cv2 as cv
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib.gridspec as gridspec
-import subprocess, os, sys, shutil
+import os, sys, shutil
 from osgeo import gdal
 from pyproj import Transformer, CRS
 
@@ -60,10 +55,10 @@ def find_tiepoints_SIFT(img1, img2, min_match_count = 100, plot = False):
     # gray2 = cv.cvtColor(image2, cv.COLOR_BGR2GRAY)
     
     image1 = cv.imread(img1, cv.IMREAD_UNCHANGED) 
-    image1 = min_max_scaler(image1)*255
+    image1 = helper.min_max_scaler(image1)*255
     image1 = image1.astype(np.uint8)
     image2 = cv.imread(img2, cv.IMREAD_UNCHANGED)
-    image2 = min_max_scaler(image2)*255
+    image2 = helper.min_max_scaler(image2)*255
     image2 = image2.astype(np.uint8)
         
     # Histogram stretching helps A LOT with tiepoint detection
@@ -121,7 +116,7 @@ def improve_L3B_geolocation_before_correlation(img1, img2, order = 3, plot = Fal
 
     #!!!! assumes that images are clipped to the same aoi
     #TODO: catch this
-    image2 = read_file(img2)
+    image2 = helper.read_file(img2)
 
 
     df["xdiff"] = df.x_img2 - df.x_img1
@@ -186,7 +181,7 @@ def improve_L3B_geolocation_before_correlation(img1, img2, order = 3, plot = Fal
     
     image2_remap = cv.remap(image2, dgx, dgy, interpolation = cv.INTER_LINEAR)
     
-    save_file([image2_remap], img2, img2[:-4]+"_remapped.tif")
+    helper.save_file([image2_remap], img2, img2[:-4]+"_remapped.tif")
     
     return img2[:-4]+"_remapped.tif"
 
@@ -251,8 +246,8 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
 def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, iterations = 1):
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
     for i in range(iterations):
-        id1 = get_scene_id(img1)
-        id2 = get_scene_id(img2)
+        id1 = helper.get_scene_id(img1)
+        id2 = helper.get_scene_id(img2)
     
         prefix = f"{id1}_{id2}_L1B"
         path, _ = os.path.split(img1)
@@ -260,10 +255,10 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         #usually, the PlanetDEM is located quite well in space, just the elevation is off and tilted
         #therefore, the elevation difference between it and a reference DEM is calculated, modelled with a 1st order polyfit and subtracted
         
-        refdemclip = match_raster_size_and_res(demname, refdem)
-        dem1 = read_file(demname)
-        dem2 = read_file(refdemclip)
-        meta = read_meta(demname)
+        refdemclip = helper.match_raster_size_and_res(demname, refdem)
+        dem1 = helper.read_file(demname)
+        dem2 = helper.read_file(refdemclip)
+        meta = helper.read_meta(demname)
         dem1[dem1 == meta["nodata"]] = np.nan
         dem2[dem1 == meta["nodata"]] = np.nan
         
@@ -279,11 +274,11 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         dem1 = dem1-dg
         
         if i > 0: #naming will be off if more then 10 iterations 
-            save_file([dem1], demname, demname[:-19]+f"_zaligned_it{i}.tif")
+            helper.save_file([dem1], demname, demname[:-19]+f"_zaligned_it{i}.tif")
             demname = demname[:-19]+f"_zaligned_it{i}.tif"
             
         else:
-            save_file([dem1], demname, demname[:-4]+f"_zaligned_it{i}.tif")
+            helper.save_file([dem1], demname, demname[:-4]+f"_zaligned_it{i}.tif")
             demname = demname[:-4]+f"_zaligned_it{i}.tif"
         #demname = warp(demname, epsg = 4326)
         
@@ -301,7 +296,7 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         txt = asp.parse_match_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
         df = asp.read_match(txt)
         
-        # image2 = read_file(img2)
+        # image2 = helper.read_file(img2)
     
         #localize SIFT features in object space using RPCs from img1
         ds = gdal.Open(img1)
@@ -387,8 +382,8 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow
     df = pd.read_csv(matchfn)
     
     for idx, row in df.iterrows():
-        id1 = get_scene_id(row.ref)
-        id2 = get_scene_id(row.sec)
+        id1 = helper.get_scene_id(row.ref)
+        id2 = helper.get_scene_id(row.sec)
         prefix = f"{id1}_{id2}{prefix_ext}"
         
         path,_ = os.path.split(row.ref)
@@ -397,9 +392,9 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow
         if os.path.isfile(dispfn):
             print(dispfn)
             #print(idx)
-            dx = read_file(dispfn, b = 1)
-            dy = read_file(dispfn, b = 2)
-            mask = read_file(dispfn, b = 3)
+            dx = helper.read_file(dispfn, b = 1)
+            dy = helper.read_file(dispfn, b = 2)
+            mask = helper.read_file(dispfn, b = 3)
             
             dx[mask == 0] = np.nan
             dy[mask == 0] = np.nan
@@ -415,18 +410,18 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow
                         
             xgrid, ygrid = np.meshgrid(np.arange(0,dx.shape[1], 1), np.arange(0, dx.shape[0], 1))
 
-            fit_data = min_max_scaler(xgrid.flatten())
-            fit_data = np.c_[fit_data, min_max_scaler(ygrid.flatten()), dxc.flatten(), dyc.flatten()]
+            fit_data = helper.min_max_scaler(xgrid.flatten())
+            fit_data = np.c_[fit_data, helper.min_max_scaler(ygrid.flatten()), dxc.flatten(), dyc.flatten()]
             
             if demname is not None: 
                 print("Adding elevation to the polynomial fit...")
-                dem_matched = match_raster_size_and_res(dispfn, demname)
-                zgrid = read_file(dem_matched)
+                dem_matched = helper.match_raster_size_and_res(dispfn, demname)
+                zgrid = helper.read_file(dem_matched)
                 #make sure to remove nodata (any negative values)
                 zgrid[zgrid < 0] = np.nan
                 #clipping and resampling DEM to exactly fit the extent and resolution of the disparity raster
             
-                fit_data = np.c_[fit_data,min_max_scaler(zgrid.flatten())]
+                fit_data = np.c_[fit_data,helper.min_max_scaler(zgrid.flatten())]
 
             fit_data = fit_data[~np.isnan(fit_data).any(axis=1)]
             
@@ -436,30 +431,30 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow
                     xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
                     xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
                         
-                    dgx = polyXY1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs1)
-                    dgy = polyXY1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs2)
+                    dgx = polyXY1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs1)
+                    dgy = polyXY1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs2)
                     
                 else:
                     xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
                     xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
                         
-                    dgx = polyXYZ1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs1)
-                    dgy = polyXYZ1((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                    dgx = polyXYZ1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs1)
+                    dgy = polyXYZ1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs2)
                 
             elif order == 2:
                 if demname is None:
                     xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
                     xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
                                    
-                    dgx = polyXY2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs1)
-                    dgy = polyXY2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten())), *xcoeffs2)
+                    dgx = polyXY2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs1)
+                    dgy = polyXY2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs2)
                     
                 else:
                     xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
                     xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
                         
-                    dgx = polyXYZ2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs1)
-                    dgy = polyXYZ2((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                    dgx = polyXYZ2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs1)
+                    dgy = polyXYZ2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs2)
                 
                     
             elif order == 3:
@@ -468,15 +463,15 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow
                     xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
                     xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
                         
-                    dgx = polyXY3(min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), *xcoeffs1)
-                    dgy = polyXY3(min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), *xcoeffs2)
+                    dgx = polyXY3(helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), *xcoeffs1)
+                    dgy = polyXY3(helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), *xcoeffs2)
                     
                 else:
                     xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
                     xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
                         
-                    dgx = polyXYZ3((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs1)
-                    dgy = polyXYZ3((min_max_scaler(xgrid.flatten()),min_max_scaler(ygrid.flatten()), min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                    dgx = polyXYZ3((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs1)
+                    dgy = polyXYZ3((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs2)
                 
             dx = dx - dgx.reshape(dx.shape)
             dy = dy - dgy.reshape(dy.shape)
@@ -485,7 +480,7 @@ def apply_polyfit(matchfn, prefix_ext= "L3B", order = 2, demname = None, plimlow
             # ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
             # ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
             
-            save_file([dx,dy], dispfn, dispfn[:-6]+"_polyfit-F.tif")
+            helper.save_file([dx,dy], dispfn, dispfn[:-6]+"_polyfit-F.tif")
             
             
   

@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Jan 12 14:01:48 2022
 
-@author: ariane
-"""
-import rasterio, os, fnmatch, datetime, subprocess, glob, json
+import rasterio
+import os
+import fnmatch
+import datetime
+import subprocess
+import json
 import numpy as np
 from osgeo import gdal, gdalconst
-import pandas as pd
-from scipy.ndimage import label, binary_dilation
 from pyproj import Transformer, CRS
 
 def list_files(dir, pattern):

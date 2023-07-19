@@ -19,6 +19,6 @@ work_dir = "./tutorial/"
 aoi = os.path.join(work_dir,"test_aoi.geojson") #TODO: check that AOI is in EPSG:4326, else reproject
 instrument = "PSB.SD"
 
-searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.3, date_start = "2022-11-01", date_stop = "2023-05-30")
+searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.1, date_start = "2020-03-01", date_stop = "2023-06-30")
 df = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, min_overlap = 99)
-groups = search.find_common_perspectives(df, va_diff_thresh = 0.8, min_group_size = 3, min_dt = 1)
+groups = search.find_common_perspectives(df, va_diff_thresh = 0.6, min_group_size = 5, min_dt = 30, searchfile = searchfile)

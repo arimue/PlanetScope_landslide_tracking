@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Wed Mar  1 15:55:06 2023
 
-@author: ariane
-"""
-
-import os, subprocess, shutil, glob, datetime
+import os
+import subprocess 
+import shutil
+import glob
 import pandas as pd
 import helper_functions as helper
 import numpy as np
@@ -60,7 +58,6 @@ def preprocess_scenes(files, out_path = "./", band_nr = 2): #TODO: fetch work_di
     print("Isolated bands can now be found in " + out_path)
     
     return out
-
 
 
 def rate_match(infodf, matchdf):
