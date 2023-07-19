@@ -4,7 +4,7 @@ In this tutorial, we will use the downloaded PlanetScope L3B data to retrieve di
 
 ## Step 1: Isolate green band
 
-The correlation with ASP can only be carried out for single-band images. Technically, a pseudo-panchromatic image could be generated from all RGB bands, however, due to inter-band misalignment we recommend to work with a single band only. To isolate bands use the functions collected unter `preprocessing_functions.py`:
+The correlation with ASP can only be carried out for single-band images. Technically, a pseudo-panchromatic image could be generated from all RGB bands, however, due to inter-band misalignment we recommend to work with a single band only. To isolate bands use the functions collected under `preprocessing_functions.py`:
 
 ``` python
 import preprocessing_functions as preprocessing
@@ -63,6 +63,25 @@ dmaps = asp.correlate_asp_wrapper(amespath, matches, sp_mode = 2, corr_kernel = 
 
 Running this will take a moment, depending on the number of image pairs and correlation parameters you used. Subpixel mode 2 (Bayes EM weighting) produces best results but takes longest. Use subpixel mode 3 for a trade-off between runtime and accuracy. Subpixel mode 1 (parabola fitting) should only be used for a rough overview - the measurements are not precise. 
 When it is done, the function will return a list of filenames of the newly generated disparity maps. You will find them in the same directory as your image data in a subfolder called `disparity_maps`.
-Filtered disparity maps are 3-band GeoTIFF files with the first band representing the displacement in East-West direction (dx), the second band North-South (dy), and the third a good pixel mask. Files are named after the following convention: `[id_img1]_[id_img2][prefix_ext]-F.tif`. The prefix extension will by default be empty, however, I can recommend to give some meaningful name, so you know which data were correlated. 
-
+Filtered disparity maps are 3-band GeoTIFF files with the first band representing the displacement in East-West direction (dx), the second band North-South (dy), and the third a good pixel mask. Files are named after the following convention: `[id_img1]_[id_img2][prefix_ext]-F.tif`. The prefix extension will by default be empty, however, I can recommend to give some meaningful name, so you know which data were correlated. Here are the offset-tracking results for an exemplary image pair:
 <img src='./figures/disp_map.png'>
+
+## Step 4: Apply polynomial fit
+
+As you can see, the disparity map still contains systematic erroneous displacement signals related to stereoscopic effects and ramp errors. To mitigate these, you can apply a polynomial fit. All necessary functions are stored under `optimization_functions.py`. The apply_polyfit() function support fitting of of polynomials (orders 1-3) based on X and Y grid positions: 
+
+``` python
+import optimization_functions as opt
+
+dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "_L3B", order = 2)
+```
+<img src='./figures/pfit_2nd_order.png'>
+
+You can see that this efficiently removed ramp errors, however, the stereoscopic effects are still present. You can model these with an external Digital Elevation Model (DEM). Select a DEM that was acquired as close to the acquisition of the PlanetScope data as possible. If major elevation changes have occurred since the acquisition of the Copernicus DEM, you can create a reference model from PlanetScope data itself (see Tutorial 3). 
+
+``` python
+demname = "/path/to/a/DEM.tif"
+dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "_L3B", order = 2, demname = demname)
+```
+<img src='./figures/pfit_2nd_order_elev.png'>
+

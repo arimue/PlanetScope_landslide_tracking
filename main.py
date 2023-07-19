@@ -8,12 +8,15 @@ Created on Wed Mar  1 15:41:47 2023
 import planet_search_functions as search
 import preprocessing_functions as preprocessing
 import postprocessing_functions as postprocessing
-import core_functions as core
+import optimization_functions as opt
 import asp_helper_functions as asp
 import pandas as pd
 import glob, os
 import numpy as np
 import helper_functions as helper
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 
 work_dir = "./tutorial/"
 work_dir = '/home/ariane/Downloads/test'
@@ -34,19 +37,32 @@ matches = matches.iloc[0:2]
 
 dmaps = asp.correlate_asp_wrapper(amespath, matches, sp_mode = 1, corr_kernel = 35, prefix_ext = "_L3B", overwrite=True)
 
-dx = helper.read_file(maps[0])
-dy = helper.read_file(maps[0], 2)
-mask = helper.read_file(maps[0], 3)
-import matplotlib.gridspec as gridspec
-fig, ax = plt.subplots(1, 3, figsize=(12, 4))
-im0 = ax[0].imshow(dx, vmin=-2, vmax=2, cmap="coolwarm")
-im1 = ax[1].imshow(dy, vmin=-2, vmax=2, cmap="coolwarm")
-im2 = ax[2].imshow(mask, vmin=0, vmax=1, cmap="Greys")
+# dx = helper.read_file(maps[0])
+# dy = helper.read_file(maps[0], 2)
+# mask = helper.read_file(maps[0], 3)
+# fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+# im0 = ax[0].imshow(dx, vmin=-2, vmax=2, cmap="coolwarm")
+# im1 = ax[1].imshow(dy, vmin=-2, vmax=2, cmap="coolwarm")
+# im2 = ax[2].imshow(mask, vmin=0, vmax=1, cmap="Greys")
+# ax[0].set_title("dx")
+# ax[1].set_title("dy")
 
-# Add colorbars
-cbar0 = fig.colorbar(im0, ax=ax[0], aspect=40)
-cbar1 = fig.colorbar(im1, ax=ax[1], aspect=40)
-cbar2 = fig.colorbar(im2, ax=ax[2], aspect=40)
+# ax[2].set_title("mask")
 
-plt.savefig("./tutorial/figures/disp_map.png", dpi = 300)
+# # Add colorbars
+# divider0 = make_axes_locatable(ax[0])
+# cax0 = divider0.append_axes("right", size="5%", pad=0.05)
+# cbar0 = fig.colorbar(im0, cax=cax0, label='Offset [pix]')
 
+# divider1 = make_axes_locatable(ax[1])
+# cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+# cbar1 = fig.colorbar(im1, cax=cax1, label='Offset [pix]')
+
+# divider2 = make_axes_locatable(ax[2])
+# cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+# cbar2 = fig.colorbar(im2, cax=cax2, label='Mask value')
+# plt.tight_layout()
+
+# plt.savefig("./tutorial/figures/disp_map.png", dpi = 300)
+
+opt.apply_polyfit(matches, prefix_ext= "L3B", order = 2)
