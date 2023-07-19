@@ -17,8 +17,8 @@ import helper_functions as helper
 
 work_dir = "./tutorial/"
 work_dir = '/home/ariane/Downloads/test'
-work_dir = "/home/ariane/Documents/PlanetScope/Siguas/L3B/"
-aoi = os.path.join(work_dir,"test_aoi.geojson") #TODO: check that AOI is in EPSG:4326, else reproject
+work_dir = "/home/ariane/Documents/PlanetScope/delMedio/L3B/group3/"
+aoi = os.path.join("./tutorial/","test_aoi.geojson") #TODO: check that AOI is in EPSG:4326, else reproject
 instrument = "PSB.SD"
 
 # searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.1, date_start = "2020-03-01", date_stop = "2023-06-30")
@@ -27,4 +27,5 @@ instrument = "PSB.SD"
 
 files = glob.glob("/home/ariane/Downloads/Siguas_L3B_fillGaps_psscene_analytic_sr_udm2/PSScene/*3B_AnalyticMS_SR_clip.tif")
 #preprocessing.get_single_band(files, out_path = "/home/ariane/Downloads/test/", band_nr = 2)
-matches = preprocessing.match_all(work_dir, ext = "_b2.tif", dt_min = 1)
+#matches = preprocessing.match_all(work_dir, ext = "_b2.tif", dt_min = 180)
+matches = preprocessing.generate_matchfile_from_search(df, check_existence=True)

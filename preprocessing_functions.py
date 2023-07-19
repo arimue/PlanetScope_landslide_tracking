@@ -8,7 +8,6 @@ import glob
 import pandas as pd
 import helper_functions as helper
 import numpy as np
-from tqdm import tqdm
 from shapely.geometry import Polygon
 from xml.dom import minidom
 import asp_helper_functions as asp
@@ -159,89 +158,107 @@ def rate_match(infodf, matchdf):
     scores = pd.DataFrame.from_records(scores).explode(["secid","score", "overlap", "va_sum", "va_diff", "az_diff", "true_va_diff"]).reset_index(drop = True)
     return(scores)
 
-def add_offset_variance_to_rated_matches(scores, stereopath, prefix_ext = "L3B"):
+def generate_matchfile_from_search(df, path = "./",  ext = "_b2.tif", check_existence = False):
     
-    scores = scores.reset_index(drop = True)
-    dvar = np.zeros([len(scores),2])
-    dvar[:] = np.nan
-    
-    for i, row in tqdm(scores.iterrows(), total=scores.shape[0]):
-        prefix = row.refid + "_" + row.secid + "L3B"
-        
-        if os.path.isfile(stereopath+prefix+"-F.tif"):
-            dx = helper.read_file(stereopath+prefix+"-F.tif",1)
-            dy = helper.read_file(stereopath+prefix+"-F.tif", 2)
-            mask = helper.read_file(stereopath+prefix+"-F.tif",3)
-            dx[mask == 0] = np.nan
-            dy[mask == 0] = np.nan
-            
-            dvar[i,0] = np.nanvar(dx)
-            dvar[i,1] = np.nanvar(dy)
-        else: 
-            print(f"File {stereopath}{prefix}-F.tif not found...")
-            
-    scores["dx_var"] = dvar[:,0]
-    scores["dy_var"] = dvar[:,1]
+    """
+    Matches PlanetScope scenes from the provided dataframe.
 
-    return scores
-    
-def add_offset_from_mask_to_rated_matches(scores, stereopath, mask, prefix_ext = "L3B"):
-    
-    scores = scores.reset_index(drop = True)
-    dvar = np.zeros([len(scores),2])
-    dvar[:] = np.nan
-    aoi_mask = helper.read_file(mask)
-    colnames  =  [d+"_"+str(i) for i in np.unique(aoi_mask) for d in ["dx", "dy"]]
+    Args:
+        df (pandas.DataFrame): DataFrame containing scene information.
+        path (str): Path to the scenes.
+        ext (str): File extension (default: "_b2.tif").
+        check_existence (bool): Check if the scenes exist in the given path (default: False).
 
-    out = np.zeros([len(scores), len(np.unique(aoi_mask))*2])
-    out[:] = np.nan
-    for idx, row in tqdm(scores.iterrows(), total=scores.shape[0]):
-        prefix = row.refid + "_" + row.secid + "L3B"
-        
-        if os.path.isfile(stereopath+prefix+"-F.tif"):
-            dx = helper.read_file(stereopath+prefix+"-F.tif",1)
-            dy = helper.read_file(stereopath+prefix+"-F.tif", 2)
-            dmask = helper.read_file(stereopath+prefix+"-F.tif",3)
-            dx[dmask == 0] = np.nan
-            dy[dmask == 0] = np.nan
-                        
-            ii = 0
-            for maskval in np.unique(aoi_mask):
-                out[idx, ii] = np.nanmean(dx[aoi_mask == maskval])
-                ii+=1
-                out[idx, ii] = np.nanmean(dy[aoi_mask == maskval])
-                ii+=1
-            
-            
-        else: 
-            print(f"File {stereopath}{prefix}-F.tif not found...")
-            
-    outdf = pd.DataFrame(out, columns = colnames)
-    scores = pd.concat([scores, outdf], axis = 1)
-    
-    return(scores)
+    Returns:
+        pandas.DataFrame: DataFrame containing matched scenes.
 
-def generate_matchfile_from_groups(groups, path, check_existence = True):
-    
+    """
+
     if check_existence:
-        exists = [os.path.isfile(path+i+ext) for i in groups.ids]
-        groups = groups.loc[exists].reset_index(drop = True)
+        files = glob.glob(f"{path}/*{ext}")
+        if len(files) == 0:
+            print(f"No files found in {path} that match the pattern {ext}.")
+            return
+        ids = [helper.get_scene_id(f) for f in files]
+        exists = [i in ids for i in df.ids]
+        df = df.loc[exists].reset_index(drop = True)
+        file_ext = [files[i].split("/")[-1].replace(ids[i], "") for i in range(len(files))]
+        if len(set(file_ext)) != 1:
+            print(f"Found variable file extents: {list(set(file_ext))}, but I need these to be equal. Are you working with data from different sensors?")
+            return
+    matches = []
+    df = df.sort_values("ids").reset_index(drop = True)
+    for i in range(len(df)-1):
+        matches.append({
+            "ref": df.ids.iloc[i],
+            "sec": list(df.ids.iloc[i+1:])})
+        
+    matches = pd.DataFrame.from_records(matches).explode("sec")
+        
+    if check_existence:
+        matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
+        matches.sec = matches.sec.apply(lambda row: os.path.join(path, row+file_ext[0]))
+        matches.to_csv(os.path.join(path, "matches_from_search.csv"), index = False)
+        print(f"All matches were stored under {os.path.join(path, 'matches_from_search.csv')}.")
 
+    else: 
+        print("Only returning IDs of potential matches since you have not pointed by to any directory storing PlanetScope data." )
+        
+
+    print(f"I have found a total of {len(matches)} correlation pairs.")
+
+    return matches
+
+def generate_matchfile_from_groups(groups, path = "./",  ext = "_b2.tif", check_existence = False):
+    
+    """
+    Matches PlanetScope scenes in groups with a common perspective based on the provided dataframe.
+
+    Args:
+        groups (pandas.DataFrame): DataFrame containing grouped scenes.
+        path (str): Path to the scenes (default: "./").
+        ext (str): File extension (default: "_b2.tif").
+        check_existence (bool): Whether to check if the scenes exist in the given path (default: False).
+
+    Returns:
+        pandas.DataFrame: DataFrame containing matched scenes.
+
+    """
+
+    if check_existence:
+        files = glob.glob(f"{path}/*{ext}")
+        if len(files) == 0:
+            print(f"No files found in {path} that match the pattern {ext}.")
+            return
+        ids = [helper.get_scene_id(f) for f in files]
+        exists = [i in ids for i in groups.ids]
+        groups = groups.loc[exists].reset_index(drop = True)
+        file_ext = [files[i].split("/")[-1].replace(ids[i], "") for i in range(len(files))]
+        if len(set(file_ext)) != 1:
+            print(f"Found variable file extents: {set(file_ext)}, but I need these to be equal. Are you working with data from different sensors?")
+            return
     matches = []
     for group in groups.group_id.unique():
         gdf = groups.loc[groups.group_id == group].sort_values("ids").reset_index(drop = True)
         for i in range(len(gdf)-1):
             matches.append({
                 "ref": gdf.ids.iloc[i],
-                "sec": list(gdf.ids.iloc[i+1:])})
+                "sec": list(gdf.ids.iloc[i+1:]), 
+                "group": group})
             
-        matches = pd.DataFrame.from_records(matches).explode("sec")
+    matches = pd.DataFrame.from_records(matches).explode("sec", "group")
         
-        matches.ref = Path(path, matches.ref+ ext)
-        matches.sec = path + matches.sec+ ext
+    if check_existence:
+        matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
+        matches.sec = matches.sec.apply(lambda row: os.path.join(path, row+file_ext[0]))
+        matches.to_csv(os.path.join(path, "matches_by_group.csv"), index = False)
+        print(f" All matches were stored under {os.path.join(path, 'matches_by_group.csv')}.")
+
+    else: 
+        print("Only returning IDs of potential matches since you have not pointed by to any directory storing PlanetScope data." )
         
-        matches.to_csv(os.path.join(path, f"matches_group{group}.csv"), index = False)
-    
+    print(f"I have found a total of {len(matches)} correlation pairs.")
+
     return matches
 
 
@@ -271,7 +288,7 @@ def match_all(path, ext = "_b2.tif", dt_min = None):
     file_ext = [files[i].split("/")[-1].replace(ids[i], "") for i in range(len(files))]
     if len(set(file_ext)) != 1:
         print(f"Found variable file extents: {set(file_ext)}, but I need these to be equal. Are you working with data from different sensors?")
-        #return
+        return
     ids = sorted(ids)
     matches = []
         
@@ -295,6 +312,7 @@ def match_all(path, ext = "_b2.tif", dt_min = None):
         
         if len(matches) == 0:
             print("It looks like there are no more suitable matches if I apply your minimal temporal baseline. Try to lower it.")
+            return
     matches.to_csv(os.path.join(path, "all_matches.csv"), index = False)
     print(f"I have found {len(matches)} correlation pairs. All matches were stored under {os.path.join(path, 'all_matches.csv')}.")
     
@@ -302,12 +320,24 @@ def match_all(path, ext = "_b2.tif", dt_min = None):
 
 
 def orthorectify_L1B(files, demname, aoi, epsg, amespath, pad = 0):
+    """
+    Orthorectifies provided L1B data based on the given DEM.
+
+    Args:
+        files (list): List of input files.
+        demname (str): Name of the DEM file.
+        aoi (str): name and path tp AOI geometry (GeoJSON).
+        epsg (int): EPSG code for the coordinate system.
+        amespath (str): Ames Stereo Pipeline path.
+        pad (int): Padding value for clipping raw data based on RPCs (default: 0).
+
+    """
     ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
 
     for f in files: 
         #its best to roughly clip before mapprojection, otherwise the process takes long
         clip = helper.clip_raw(f, ul_lon, ul_lat, xsize+pad, ysize+pad, demname)
         mp = asp.mapproject(amespath, clip, demname, epsg = epsg)
-        #finetune clip, bc clipping with RPCs is not always super exact
+        #finetune clip, because clipping with RPCs is not always super exact
         _ = helper.clip_mp_cutline(mp, aoi)
     

@@ -253,6 +253,7 @@ def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_d
         print("Could not find sufficient scenes for groups of relevant size. Try to widen your search parameters.")
         return
     else:
+        print(f"I found {groups.group_id.nunique()} potential correlation groups.")
         return groups
     
 def download_xml_metadata(ids, out_dir = None):
