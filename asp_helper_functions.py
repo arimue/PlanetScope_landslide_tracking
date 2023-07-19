@@ -1,26 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Fri Mar  3 15:23:13 2023
-
-@author: ariane
-"""
 
 import glob, subprocess, os, shutil
-from helper_functions import clip_raw, size_from_aoi, clip_mp_cutline, get_scene_id, get_epsg, warp
+from helper_functions import clip_raw, size_from_aoi, get_scene_id
 import pandas as pd
 
-def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode = 1, method = "asp_bm", nodata_value = None, corr_kernel = 25):
+
+def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode = 1, method = "asp_bm", nodata_value = None, corr_kernel = 35):
     
-    #run ASP stereo correlation in correlator mode using the input parameters
-    #provide a path to your asp installation
+    """
+    Run ASP stereo correlation in correlator mode using the input parameters.
+
+    Args:
+        amespath (str): Path to the ASP installation.
+        img1 (str): Path to the reference image.
+        img2 (str): Path to the secondary image.
+        prefix (str): Prefix for output files (default: "run").
+        session (str): Session type (default: "rpc").
+        sp_mode (int): Subpixel mode (default: 1).
+        method (str): Stereo algorithm method (default: "asp_bm").
+        nodata_value (float or None): Nodata value for output disparity maps (default: None).
+        corr_kernel (int): Correlation kernel size (default: 35).
+
+    Returns:
+        str: Path to the folder where disparity maps are saved.
+
+    """
     
-    folder = img1.replace(img1.split("/")[-1], "")
-    print(f"Data will be saved under {folder}stereo/")
+    folder,_ = os.path.split(img1)
+    print(f"Data will be saved under {os.path.join(folder, 'disparity_maps')}")
     
     if method == "asp_bm":
-    #this can also be changed to parallel_stereo
-        cmd = f"{amespath}stereo {img1} {img2} {folder}stereo/{prefix} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --subpixel-mode {sp_mode} --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10} --threads 0" 
+        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {img1} {img2} {os.path.join(folder, 'disparity_maps', prefix)} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --subpixel-mode {sp_mode} --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10} --threads 0" 
         if nodata_value is not None: 
             cmd = f"{cmd} --nodata-value {nodata_value}"
     else:
@@ -28,14 +39,86 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
         if (corr_kernel > 9) or (corr_kernel%2 == 0):
             print("Correlation kernel size is not suitable for mgm. Pick an odd kernel size <= 9!")
             return
-        cmd = f"{amespath}parallel_stereo {img1} {img2} {folder}stereo/{prefix} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --corr-kernel 9 9 --subpixel-mode {sp_mode} --subpixel-kernel {corr_kernel*2+1} {corr_kernel*2+1} --threads 0" 
+        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {img1} {img2} {os.path.join(folder, 'disparity', prefix)} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --corr-kernel 9 9 --subpixel-mode {sp_mode} --subpixel-kernel {corr_kernel*2+1} {corr_kernel*2+1} --threads 0" 
 
         if nodata_value is not None: 
             cmd = f"{cmd} --nodata-value {nodata_value}"
             
     subprocess.run(cmd, shell = True)
     
-    return f"{folder}stereo/"
+    return os.path.join(folder, 'disparity_maps')
+
+
+def clean_asp_files(path, prefix):
+    
+    """
+    Remove unnecessary ASP files, keeping only the filtered disparity maps.
+
+    Args:
+        path (str): Path to the folder containing the ASP files.
+        prefix (str): Prefix used in the ASP file names.
+
+    """
+    
+    files = glob.glob(f"{path}/{prefix}-*")
+    disp  = glob.glob(f"{path}/{prefix}-F.tif")
+    remove = set(files)-set(disp)
+    
+    for file in remove:
+        try:
+            os.remove(file)
+        except IsADirectoryError: #if parallel_stereo is used, also remove folders
+            shutil.rmtree(file)
+
+
+def correlate_asp_wrapper(amespath, matches, prefix_ext = "", sp_mode = 2, corr_kernel = 35, flip = False, overwrite = False):
+    """
+     Wrapper function for performing ASP correlation on multiple image pairs based on provided matches.
+    
+     Args:
+         amespath (str): Path to the ASP installation.
+         matches (str or pd.core.frame.DataFrame): Path to the matchfile or DataFrame containing the matches.
+         prefix_ext (str): Prefix extension for output files (default: "").
+         sp_mode (int): Subpixel mode (default: 2).
+         corr_kernel (int): Correlation kernel size (default: 35).
+         flip (bool): Flag to indicate reversing the order of matches (default: False).
+         overwrite (bool): Flag to indicate overwriting existing disparity maps (default: False).
+    
+     Returns:
+         list: List of output disparity map paths.
+    
+     """
+    if type(matches) == str:
+        try:
+            df = pd.read_csv(matches)
+        except FileNotFoundError:
+            print("Could not find the provided matchfile.")
+            return
+    elif type(matches) == pd.core.frame.DataFrame:
+        df = matches.copy()
+    else:
+        print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
+        return
+    
+    if flip: # flipping dataframe. makes sense if running correlation on multiple machines, 
+        df = df.reindex(index=df.index[::-1]).reset_index(drop = True)
+
+    df["id_ref"] = df.ref.apply(get_scene_id)
+    df["id_sec"] = df.sec.apply(get_scene_id)
+    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
+    
+    out = []
+    for _,row in df.iterrows():
+    
+        prefix = row.id_ref + "_" + row.id_sec + prefix_ext
+        if (not os.path.isfile(os.path.join(row.path,"disparity_maps",prefix+"-F.tif"))) or overwrite:
+            outpath = correlate_asp(amespath, row.ref, row.sec, prefix = prefix, session = "rpc", sp_mode = sp_mode, method = "asp_bm", nodata_value = None, corr_kernel = corr_kernel)
+            clean_asp_files(outpath, prefix)
+        else: 
+            print("Disparity map exists. Skipping correlation...")
+        out.append(os.path.join(row.path,"disparity_maps",prefix+"-F.tif"))
+    
+    return(out)
 
 
 def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, ext = "mp", resolution = 3):
@@ -55,20 +138,6 @@ def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, 
     subprocess.run(cmd, shell = True)
     return f"{img[:-4]}_{ext}.tif"
     
-def clean_asp_files(path, prefix):
-    
-    #cleans up behind ASP to remove unneccessary files 
-    #will only keep the filtered disparity file ("*-F.tif")
-    
-    files = glob.glob(f"{path}{prefix}-*")
-    disp  = glob.glob(f"{path}{prefix}-F.tif")
-    remove = set(files)-set(disp)
-    
-    for file in remove:
-        try:
-            os.remove(file)
-        except IsADirectoryError: #if parallel_stereo is used, also remove folders
-            shutil.rmtree(file)
             
 
 def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix = None, overwrite = False):
@@ -100,7 +169,7 @@ def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix 
         print("Using existing bundle adjustment files.")
         
     if not os.path.isfile(f"{path}/stereo_run1/{prefix}-PC.tif") or overwrite:
-        cmd = f"{amespath}stereo {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel 65 65 --subpixel-kernel 75 75" 
+        cmd = f"{amespath}parallel_stereo {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel 65 65 --subpixel-kernel 75 75" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run1/{prefix}-PC.tif")
@@ -128,7 +197,7 @@ def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix 
     shutil.copyfile(f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust", f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}_mp.adjust")
     
     if not os.path.isfile(f"{path}/stereo_run2/{prefix}-PC.tif") or overwrite:
-        cmd = f"{amespath}stereo {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 65 65 --subpixel-kernel 75 75" 
+        cmd = f"{amespath}parallel_stereo {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 65 65 --subpixel-kernel 75 75" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run2/{prefix}-PC.tif")

@@ -7,9 +7,7 @@ import shutil
 import glob
 import pandas as pd
 import helper_functions as helper
-import numpy as np
 from shapely.geometry import Polygon
-from xml.dom import minidom
 import asp_helper_functions as asp
 
 def isolate_band(img, band_nr=2):
@@ -59,10 +57,20 @@ def get_single_band(files, out_path = "./", band_nr = 2): #TODO: fetch work_dir 
 
 
 def rate_match(infodf, matchdf):
-    #rate existing matches, do not suggest
-    #sort by reference if not already to be able to calculate scores in batches
+    """
+    Rates existing matches.
+ 
+    Args:
+        infodf (pandas.DataFrame): DataFrame containing scene information.
+        matchdf (pandas.DataFrame): DataFrame containing matched scenes.
+ 
+    Returns:
+        pandas.DataFrame: DataFrame containing true view angle difference and overlap between scenes.
+    """
+      
+    #sort by reference if not already to be able to calculate ratings in batches
     matchdf = matchdf.sort_values("ref").reset_index(drop = True)
-    scores = []
+    ratings = []
     for ref in matchdf.ref.unique():
         
         #print(ref)
@@ -79,18 +87,16 @@ def rate_match(infodf, matchdf):
             intersection = refPoly.intersection(secPoly)
             overlap.append(intersection.area/refPoly.area*100)
             
-      
-        secinfo["true_va"] = secinfo.view_angle
-        
-        scores.append({
+             
+        ratings.append({
             "refid": refid,
             "secid": secinfo.ids, 
             "overlap": overlap,
-            "true_va_diff":abs(ref_va-secinfo.true_va)})
+            "true_va_diff":abs(secinfo.true_view_angle- refinfo.true_view_angle.iloc[0])})
 
         
-    scores = pd.DataFrame.from_records(scores).explode(["secid","overlap","true_va_diff"]).reset_index(drop = True)
-    return(scores)
+    ratings = pd.DataFrame.from_records(ratings).explode(["secid","overlap","true_va_diff"]).reset_index(drop = True)
+    return(ratings)
 
 def generate_matchfile_from_search(df, dt_min = None, path = "./",  ext = "_b2.tif", check_existence = False):
     
@@ -192,7 +198,7 @@ def generate_matchfile_from_groups(groups, dt_min = None, path = "./",  ext = "_
                 "sec": list(gdf.ids.iloc[i+1:]), 
                 "group": group})
             
-    matches = pd.DataFrame.from_records(matches).explode("sec", "group")
+    matches = pd.DataFrame.from_records(matches).explode(["sec"])
     
     if dt_min is not None:
         date_ref = [helper.get_date(i) for i in matches.ref]
