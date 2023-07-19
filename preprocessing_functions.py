@@ -13,7 +13,6 @@ from shapely.geometry import Polygon
 from xml.dom import minidom
 import asp_helper_functions as asp
 
-
 def isolate_band(img, band_nr=2):
     """
     Isolate a specific band from an image and save it as a separate TIFF file.
@@ -222,9 +221,9 @@ def add_offset_from_mask_to_rated_matches(scores, stereopath, mask, prefix_ext =
     
     return(scores)
 
-def generate_matchfile_from_groups(groups, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", checkExistence = True):
+def generate_matchfile_from_groups(groups, path, check_existence = True):
     
-    if checkExistence:
+    if check_existence:
         exists = [os.path.isfile(path+i+ext) for i in groups.ids]
         groups = groups.loc[exists].reset_index(drop = True)
 
@@ -236,47 +235,68 @@ def generate_matchfile_from_groups(groups, path, ext = "_3B_AnalyticMS_SR_clip_b
                 "ref": gdf.ids.iloc[i],
                 "sec": list(gdf.ids.iloc[i+1:])})
             
-    matches = pd.DataFrame.from_records(matches).explode("sec")
-    
-    matches.ref = path + matches.ref+ ext
-    matches.sec = path + matches.sec+ ext
-    
-    matches.to_csv(path+"matches.csv", index = False)
+        matches = pd.DataFrame.from_records(matches).explode("sec")
+        
+        matches.ref = Path(path, matches.ref+ ext)
+        matches.sec = path + matches.sec+ ext
+        
+        matches.to_csv(os.path.join(path, f"matches_group{group}.csv"), index = False)
     
     return matches
 
 
-def match_all(df, path, ext = "_3B_AnalyticMS_SR_clip_b2.tif", dt = None, checkExistence = False):
+def match_all(path, ext = "_b2.tif", dt_min = None):
+    """
+    Matches all PlanetScope scenes stored in the provided directory that match the given pattern (file extension).
+
+    Args:
+        df (pandas.DataFrame): DataFrame containing scene information.
+        path (str): Path to the scenes.
+        ext (str): File extension (default: "_b2.tif").
+        dt_min (int): Minimum number of days between reference and secondary scenes (default: None).
+
+    Returns:
+        pandas.DataFrame: DataFrame containing matched scenes.
+    """
+    files = glob.glob(f"{path}/*{ext}")
     
+    if len(files) < 1: 
+        print("I could not find any matching scenes. Check if the provided path and file extent is correct.")
+        return
+    elif len(files) <2:
+        print("Only one matching scene found. I need at least two for matching.")
+        return
+    
+    ids = [helper.get_scene_id(f) for f in files]
+    file_ext = [files[i].split("/")[-1].replace(ids[i], "") for i in range(len(files))]
+    if len(set(file_ext)) != 1:
+        print(f"Found variable file extents: {set(file_ext)}, but I need these to be equal. Are you working with data from different sensors?")
+        #return
+    ids = sorted(ids)
     matches = []
-    df = df.sort_values("ids").reset_index(drop = True)
-    if checkExistence: 
         
-        exists = [os.path.isfile(path+ i+ ext) for i in df.ids]
-        df = df.loc[exists].reset_index(drop = True)
-        if len(df) < 1: 
-            print("I could not find any matching scenes. Check if the provided path and file extent is correct.")
-            return
-        
-    for i in range(len(df)-1):
+    for i in range(len(files)-1):
         matches.append({
-            "ref": df.ids.iloc[i],
-            "sec": list(df.ids.iloc[i+1:])})
+            "ref": ids[i],
+            "sec": list(ids[i+1:])})
                 
             
     matches = pd.DataFrame.from_records(matches).explode("sec").reset_index(drop = True)
-    matches.ref = path + matches.ref+ ext
-    matches.sec = path + matches.sec+ ext
+    matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
+    matches.sec = matches.sec.apply(lambda row: os.path.join(path, row+file_ext[0]))
     
     
-    if dt is not None:
+    if dt_min is not None:
         date_ref = [helper.get_date(helper.get_scene_id(i)) for i in matches.ref]
         date_sec = [helper.get_date(helper.get_scene_id(i)) for i in matches.sec]
-        good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt]
+        good_dt = [i for i in range(len(date_ref)) if (date_sec[i]-date_ref[i]).days > dt_min]
         
         matches = matches.iloc[good_dt].reset_index(drop = True)
         
-    matches.to_csv(path+"all_matches.csv", index = False)
+        if len(matches) == 0:
+            print("It looks like there are no more suitable matches if I apply your minimal temporal baseline. Try to lower it.")
+    matches.to_csv(os.path.join(path, "all_matches.csv"), index = False)
+    print(f"I have found {len(matches)} correlation pairs. All matches were stored under {os.path.join(path, 'all_matches.csv')}.")
     
     return matches
 
