@@ -184,7 +184,7 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
         print("Using existing bundle adjustment files.")
         
     if (not os.path.isfile(f"{path}/stereo_run1/{prefix}-PC.tif")) or overwrite:
-        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10}" 
+        cmd = f"{os.path.join(amespath, 'stereo')} {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10}" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run1/{prefix}-PC.tif")
@@ -211,7 +211,7 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
     shutil.copyfile(f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust", f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}_mp.adjust")
     
     if (not os.path.isfile(f"{path}/stereo_run2/{prefix}-PC.tif")) or overwrite:
-        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 65 65 --subpixel-kernel 75 75" 
+        cmd = f"{os.path.join(amespath, 'stereo')} {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 65 65 --subpixel-kernel 75 75" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run2/{prefix}-PC.tif")

@@ -25,4 +25,7 @@ asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = demname
 
 ## Step 3: DEM alignment
 
-As no ground control is used, the resulting DEM may be offset in all X Y and Z directions with regards to the terrain it is modeling. 
+As no ground control is used, the resulting DEM may be offset in all X Y and Z directions with regards to the terrain it is modeling. This needs to be resolved before the PlanetScope DEM can be used to orthorectify other data. I generally like to use [demcoreg](https://github.com/dshean/demcoreg) for DEM alignment. Make sure to increase the limits for max. offsets if the PlanetScope DEM is really far off, e.g.: 
+``` bash
+dem_align.py ref_dem.tif planet_dem.tif -mode nuth -max_dz 1000 -max_offset 500
+```
