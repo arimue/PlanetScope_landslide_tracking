@@ -116,3 +116,4 @@ cbar1 = fig.colorbar(im1, cax=cax1, label='Direction [°]')
 plt.tight_layout()
 plt.savefig("./tutorial/figures/velocity_direction.png", dpi = 300)
 
+postprocessing.stack_rasters(matches, prefix_ext = "L3B_polyfit", what = "velocity")

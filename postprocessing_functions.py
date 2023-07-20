@@ -24,7 +24,20 @@ import cv2
 
 
 def calc_velocity(fn, dt, fixed_res = None, medShift = False):
-    
+    """
+    Calculate velocity and direction of displacement between two images.
+ 
+    Parameters:
+    fn (str): Path to the input raster file.
+    dt (timedelta): Temporal baseline between the two images.
+    fixed_res (float, optional): Fixed raster resolution (default: None, read from metadata).
+    med_shift (bool, optional): Apply median shift to displacements (default: False).
+ 
+    Returns:
+    v (numpy.ndarray): Velocity in meters per year.
+    direction (numpy.ndarray): Direction of displacement in degrees with respect to north.
+    """
+
     #NOTE: if the temporal baseline is short, the background noise of typically +-1-2 pixels will result in abnormally high velocities
     #therefore, only use these pairs if the landslide is fast moving
     
@@ -85,6 +98,19 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
 
 def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift = True): 
     
+    """
+    Calculate velocity and direction of displacement for multiple image pairs.
+    
+    Parameters:
+    matches (str or pandas.DataFrame): Path to the matchfile or a pandas DataFrame with match information.
+    prefix_ext (str, optional): Prefix extension for the output files (default: "").
+    overwrite (bool, optional): Overwrite existing velocity files (default: False).
+    med_shift (bool, optional): Apply median shift to displacements (default: True).
+    
+    Returns:
+    out (list): List of paths to the calculated velocity files.
+    """
+    
     if type(matches) == str:
         try:
             df = pd.read_csv(matches)
@@ -100,7 +126,6 @@ def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift 
         print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
         return
     
-
     df["id_ref"] = df.ref.apply(get_scene_id)
     df["id_sec"] = df.sec.apply(get_scene_id)
     df["date_ref"] = df.id_ref.apply(get_date)
@@ -537,28 +562,45 @@ def get_stats_for_entire_raster(matchfile, prefixext = "L3B", take_velocity = Tr
 
 
 
-def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity", medShift = False):
+def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False):
     
     #TODO: make this more laptop friendly
-    df = pd.read_csv(matchfile)
-    path,fn = os.path.split(matchfile) #! Assumes that all files are stored in the directory of the matchfile. Might refine that in the future.
+    if type(matches) == str:
+        try:
+            df = pd.read_csv(matches)
+            path,fn = os.path.split(matches)
+   
+        except FileNotFoundError:
+            print("Could not find the provided matchfile.")
+            return
+    elif type(matches) == pd.core.frame.DataFrame:
+        df = matches.copy()
+        path,_ = os.path.split(df.ref.iloc[0])
+        fn = "matches.csv"
+    else:
+        print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
+        return
+     
     
     df["id_ref"] = df.ref.apply(get_scene_id)
     df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
+    df["date_ref"] = df.id_ref.apply(get_date) 
     df["date_sec"] = df.id_sec.apply(get_date)
     df["dt"]  = df.date_sec - df.date_ref
+    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
+
         
     if what == "velocity": 
-        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F_velocity.tif"
+        df["filenames"] = df.path+"/disparity_maps/"+df.id_ref+"_"+df.id_sec+ prefix_ext+"-F_velocity.tif"
+
         array_list = [np.ma.masked_invalid(read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
         
     elif what == "direction": 
-        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F_velocity.tif"
+        df["filenames"] = df.path+"/disparity_maps/"+df.id_ref+"_"+df.id_sec+ prefix_ext+"-F_velocity.tif"
         array_list = [np.deg2rad(read_file(x,2)) for x in df.filenames if os.path.isfile(x)]
         
     else: 
-        df["filenames"]  = path+"/stereo/"+df.id_ref+"_"+df.id_sec+prefixext+"-F.tif"
+        df["filenames"] = df.path+"/disparity_maps/"+df.id_ref+"_"+df.id_sec+ prefix_ext+"-F.tif"
 
         if what == "dx":
         
@@ -568,7 +610,7 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity", me
             array_list = [read_file(x,2) for x in df.filenames if os.path.isfile(x)]
 
         else: 
-            print("Please provide a valid input for what should be stacked [dx/dy/velocity].")
+            print("Please provide a valid input for what should be stacked [dx/dy/velocity/direction].")
             return
         
         dt = [df["dt"][i].days for i in range(len(df)) if os.path.isfile(df.filenames[i])]
@@ -606,7 +648,7 @@ def stack_rasters_weightfree(matchfile, prefixext = "L3B", what = "velocity", me
         average_vals = np.rad2deg(circmean(array_list, axis=0, nan_policy="omit"))
         variance_vals = np.rad2deg(circstd(array_list, axis=0, nan_policy="omit"))
         
-    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}{prefixext}.tif"))
+    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
 
     
 
