@@ -563,7 +563,18 @@ def get_stats_for_entire_raster(matchfile, prefixext = "L3B", take_velocity = Tr
 
 
 def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False):
+    """
+    Stack velocity or disparity rasters from all correlation pairs.
     
+    Parameters:
+    matches (str or pandas.DataFrame): Path to the matchfile or a pandas DataFrame with match information.
+    prefix_ext (str, optional): Prefix extension for the output files (default: "").
+    what (str, optional): Type of rasters to stack [dx/dy/velocity/direction] (default: "velocity").
+    med_shift (bool, optional): Apply median shift to displacements (default: False).
+    
+    Returns:
+    path to averaged raster
+    """
     #TODO: make this more laptop friendly
     if type(matches) == str:
         try:
@@ -643,12 +654,13 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
 
     if what != "direction":
         average_vals = np.ma.average(array_list, axis=0)
-        variance_vals = np.ma.std(array_list, axis = 0)
+        std_vals = np.ma.std(array_list, axis = 0)
     else: #need to use circmean and circvar for angles
         average_vals = np.rad2deg(circmean(array_list, axis=0, nan_policy="omit"))
-        variance_vals = np.rad2deg(circstd(array_list, axis=0, nan_policy="omit"))
+        std_vals = np.rad2deg(circstd(array_list, axis=0, nan_policy="omit"))
         
-    save_file([average_vals, variance_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
+    save_file([average_vals, std_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
+    return os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif")
 
     
 
