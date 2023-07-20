@@ -183,6 +183,7 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
     else:
         print("Using existing bundle adjustment files.")
         
+    #currently using stereo instead of parallel_stereo, but can be exchanged
     if (not os.path.isfile(f"{path}/stereo_run1/{prefix}-PC.tif")) or overwrite:
         cmd = f"{os.path.join(amespath, 'stereo')} {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10}" 
         subprocess.run(cmd, shell = True)
@@ -221,38 +222,29 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using existing DEM {path}/point2dem_run2/{prefix}-DEM.tif")
-        
-        
-    #alignment with demcoreg. Sometimes not working so well, so I prefer to use the disparity based alignment approach (see core functions)
-    # print(f"Aligning DEM to {refdem}...")
-    
-    # #RefDEM will need to be in UTM coordinates
-    
-    # epsg = get_epsg(refdem)
-    
-    
-    # if epsg == 4326:
-    #     print("Reprojecting the reference DEM to a projected CRS...")
-    #     refdem = warp(refdem, epsg = epsg)
-        
-    # cmd = f"{demcoregpath}dem_align.py {refdem} {path}/point2dem_run2/{prefix}-DEM.tif -mode nuth -max_dz 1000 -max_offset 500"
-    # subprocess.run(cmd, shell = True)
-    #TODO: improve max offset constraints (initial guess?) catch errors better so that process doesnt have to start from the beginning, i.e. implement overwrite check
-
 
     print("Done!")
     
     
 def image_align_asp(amespath, img1, img2, prefix = None):
     
-    #run ASP image_align with disparity derived from running the correlation
+    """
+    Run ASP image_align to align the secondary image to the reference image.
     
+    Parameters:
+    amespath (str): Path to the ASP installation.
+    img1 (str): Path to the reference image.
+    img2 (str): Path to the secondary image.
+    prefix (str, optional): Output file prefix (default: None).
+    
+    """
+        
     folder = img1.replace(img1.split("/")[-1], "")
     print(f"Data will be saved under {folder}image_align/")
     if prefix: 
-        cmd = f"{amespath}image_align {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine --disparity-params '{folder}stereo/{prefix}-F.tif 10000' --inlier-threshold 100" 
+        cmd = f"{os.path.join(amespath, 'image_align')} {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine --disparity-params '{folder}stereo/{prefix}-F.tif 10000' --inlier-threshold 100" 
     else:
-        cmd = f"{amespath}image_align {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine  --inlier-threshold 100" 
+        cmd = f"{os.path.join(amespath, 'image_align')} {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine  --inlier-threshold 100" 
 
     subprocess.run(cmd, shell = True)
 
@@ -266,7 +258,7 @@ def parse_match_asp(amespath, img1, img2, prefix = "run"):
         print("More that one matching file found. Please check if prefixes were used more that once...")
         return
     matchfile = matchfile[0]
-    cmd = f"python {amespath}parse_match_file.py {matchfile} {matchfile[:-6]}.txt"
+    cmd = f"python {os.path.join(amespath, 'parse_match_file.py')} {matchfile} {matchfile[:-6]}.txt"
     subprocess.run(cmd, shell = True)
     return f"{matchfile[:-6]}.txt"
 

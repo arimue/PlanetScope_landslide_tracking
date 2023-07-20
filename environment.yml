@@ -1,4 +1,4 @@
-name: planetII
+name: planet
 channels:
   - conda-forge
   - defaults

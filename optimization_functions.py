@@ -188,9 +188,7 @@ def improve_L3B_geolocation_before_correlation(img1, img2, order = 3, plot = Fal
 
 def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_tr, cross_track_weight = 10):
     a,b = params
-    # a = result.x[0]
-    # b = result.x[1]
-    #print(f"{a} {b}")
+
     if os.path.isfile(demname[:-4]+"_copy.tif"):
         os.remove(demname[:-4]+"_copy.tif")
     if os.path.isfile(demname[:-4]+"_copy.tif.aux.xml"):
@@ -233,14 +231,7 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
     east_diff[~np.isfinite(east_diff)] = 100
     north_diff[~np.isfinite(north_diff)] = 100
     
-    return cross_track_weight *east_diff.sum()+north_diff.sum()
-
-    #penalize infinite values
-    east_diff[~np.isfinite(east_diff)] = 100#np.nanmax(east_diff)
-    north_diff[~np.isfinite(north_diff)] = 100#np.nanmax(north_diff)
-
-    print(east_diff.quantile(0.8)+north_diff.quantile(0.8))
-    return east_diff.quantile(0.8)+north_diff.quantile(0.8)
+    return cross_track_weight * east_diff.sum() + north_diff.sum()
 
   
 def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, iterations = 1):
@@ -252,7 +243,7 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         prefix = f"{id1}_{id2}_L1B"
         path, _ = os.path.split(img1)
         
-        #usually, the PlanetDEM is located quite well in space, just the elevation is off and tilted
+        #usually, the PlanetDEM is located quite well in XY direction, just the elevation is off and tilted
         #therefore, the elevation difference between it and a reference DEM is calculated, modelled with a 1st order polyfit and subtracted
         
         refdemclip = helper.match_raster_size_and_res(demname, refdem)
@@ -280,9 +271,8 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         else:
             helper.save_file([dem1], demname, demname[:-4]+f"_zaligned_it{i}.tif")
             demname = demname[:-4]+f"_zaligned_it{i}.tif"
-        #demname = warp(demname, epsg = 4326)
         
-        if not os.path.isfile(path+"/stereo/"+prefix+"-F.tif"):
+        if not os.path.isfile(path+"/disparity_maps/"+prefix+"-F.tif"):
             #TODO: allow adjustment of ames parameters
             print("Generating L1B disparity map to find tiepoints across entire scene...")
     
@@ -295,10 +285,8 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         asp.image_align_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
         txt = asp.parse_match_asp(amespath, img1, img2, prefix = f"{id1}_{id2}_L1B")
         df = asp.read_match(txt)
-        
-        # image2 = helper.read_file(img2)
-    
-        #localize SIFT features in object space using RPCs from img1
+            
+        #localize tiepoints in object space using RPCs from img1
         ds = gdal.Open(img1)
         tr = gdal.Transformer(ds, None, ["METHOD=RPC", f"RPC_DEM={demname}"])
         pts_obj,_ = tr.TransformPoints(0, list(zip(df.x_img1, df.y_img1)))
@@ -347,7 +335,6 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         df = df.loc[abs(df.y_img2_new - df.y_img2_should) <= dist_thresh]
     
         print("Finding optimal DEM shift ...")
-        #result = scipy.optimize.minimize(shift_dem_old, [0,0], args=(demname, img2, df.east_img1, df.north_img1, df.x_img2_new, df.y_img2_new, proj_tr))
         result = scipy.optimize.minimize(shift_dem, [0,0], args=(demname, img1, img2, df.x_img1, df.y_img1, df.x_img2_new, df.y_img2_new, proj_tr))
         print(f"Adjusting DEM position: xshift = {result.x[0]}, yshift = {result.x[1]}")
     
@@ -366,7 +353,6 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
         
         demname = demname[:-17]+f"_xyzaligned_it{i}.tif"
         
-
     return demname
 
 def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):

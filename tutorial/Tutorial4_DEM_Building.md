@@ -23,9 +23,24 @@ asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = demname
 
 ```
 
+You will find the final output DEM at 30 m resolution in the newly created directory `point2dem_run2` under the name `[id_img1]_[id_img2]-DEM.tif`. Check if the surface is smooth and void free. If there are severe artifacts, try to rerun with a larger correlation kernel or pick a different image pair.
+<img src='./figures/dem_hs.jpeg' width='500'>
+
 ## Step 3: DEM alignment
 
-As no ground control is used, the resulting DEM may be offset in all X Y and Z directions with regards to the terrain it is modeling. This needs to be resolved before the PlanetScope DEM can be used to orthorectify other data. I generally like to use [demcoreg](https://github.com/dshean/demcoreg) for DEM alignment. Make sure to increase the limits for max. offsets if the PlanetScope DEM is really far off, e.g.: 
+As no ground control is used, the resulting DEM may be offset and/or tilted with regards to the terrain it is modeling. This needs to be resolved before the PlanetScope DEM can be used to orthorectify other data, so aligning the PlanetScope DEM to a reference, e.g. the Copernicus DEM, is essential. I generally like to use [demcoreg](https://github.com/dshean/demcoreg) for DEM alignment, which you can also use for a first attempt to align the PlanetScope DEM to a reference. Make sure to increase the limits for max. offsets if the PlanetScope DEM is really far off: 
 ``` bash
 dem_align.py ref_dem.tif planet_dem.tif -mode nuth -max_dz 1000 -max_offset 500
 ```
+
+We found that [demcoreg](https://github.com/dshean/demcoreg) worked well for the high-relief Del Medio catchment, however, across the mostly flat Siguas AOI, we did not achieve a good coregistration. If that is the case, you can try a disparity based DEM alignment to remove remaining shifts:
+``` python
+import optimization_functions as opt
+
+opt.disparity_based_DEM_alignment(amespath, img1, img2, "PlanetScope_DEM.tif", "Copernicus_DEM.tif", epsg = 32720, iterations = 3)
+```
+First, the vertical shift between the PlanetScope DEM and a reference surface is estimated and removed through a first order polynomial fit. Then matching tiepoints are found between the two input images through correlation to obtain an evenly spaced and dense grid of matches. These input images should have been acquired from different perspective so that the orthorectification error signal is strong when the DEM is in the wrong position. Also, the temporal baseline needs to be short, so that the displacement across the entire scene can be assumed ot be zero. For simplicity, you can just use the image pair that went into the DEM generation process. In an iterative process, the tiepoint matches are then projected from image into object space using the RPCs of the images and the DEM at a specific X and Y location. The DEM is shifted until the sum of distances between tiepoint matches is minimal (i.e. no artificial offsets due to orthorectification errors). The whole process can be repeated several times. 
+ 
+
+
+The final aligned DEM can be employed in the orthorectification process as outlined in [Tutorial 3](./tutorial/Tutorial3_Offset_Tracking_L1B.md).

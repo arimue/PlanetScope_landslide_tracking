@@ -135,4 +135,5 @@ img1 = "./delMedio/L1B/test/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"
 img2 = "./delMedio/L1B/test/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"
 aoi = "./delMedio/L1B/test/dem_aoi.geojson"
 
-asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = "./delMedio/L1B/test/output_COP30.tif")
+#asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = "./delMedio/L1B/test/output_COP30.tif")
+opt.disparity_based_DEM_alignment(amespath, img1, img2, "./delMedio/L1B/test/point2dem_run2/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_final.tif", "./delMedio/L1B/test/output_COP30.tif", epsg = 32720, iterations = 3)
