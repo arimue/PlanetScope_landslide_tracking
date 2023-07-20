@@ -21,10 +21,10 @@ Install [Ames Stereo Pipeline](https://stereopipeline.readthedocs.io/en/latest/i
 
 ## Processing examples
 
-Detailled instructions on how to use the provided tools are provided in the [tutorial](./tutorial) folder:
-[Tutorial 1](./tutorial/Tutorial1_Data_Search.md): Searching for PlanetScope data
-[Tutorial 2](./tutorial/Tutorial2_Offset_Tracking_L3B.md): Offset tracking with L3B data
-[Tutorial 3](./tutorial/Tutorial3_Offset_Tracking_L3B.md): Offset tracking and DEM building with L1B data
+Detailled instructions on how to use the provided tools are provided in the [tutorial](./tutorial) folder:\
+[Tutorial 1](./tutorial/Tutorial1_Data_Search.md): Searching for PlanetScope data\
+[Tutorial 2](./tutorial/Tutorial2_Offset_Tracking_L3B.md): Offset tracking with L3B data\
+[Tutorial 3](./tutorial/Tutorial3_Offset_Tracking_L3B.md): Offset tracking and DEM building with L1B data\
 
 ## Citation
 
