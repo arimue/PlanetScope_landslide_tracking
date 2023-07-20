@@ -123,14 +123,28 @@ def correlate_asp_wrapper(amespath, matches, prefix_ext = "", sp_mode = 2, corr_
 
 def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, ext = "mp", resolution = 3):
     
-    # mapproject raw image data onto DEM
+    """
+    Map-project (orthorectify) raw image data onto DEM.
+
+    Parameters:
+    amespath (str): Path to the Ames Stereo Pipeline installation.
+    img (str): Path to the input image.
+    dem (str): Path to the Digital Elevation Model (DEM).
+    epsg (int): EPSG code of the target spatial reference system.
+    img_with_rpc (str, optional): Path to the image with RPC metadata (default: None).
+    ba_prefix (str, optional): Prefix for bundle adjustment (default: None).
+    ext (str, optional): Output file extension (default: "mp").
+    resolution (int, optional): Target resolution (default: 3).
+
+    Returns:
+    str: Path to the mapprojected image.
+    """
     # requires the image to have RPCs in the header. These can be added with copy_rpc if missing or just simply providing the image with rpc metadata
-    #TODO: switch from _single to mapproject although mp single works much better in my case
     
     if img_with_rpc is not None:
-        cmd = f"{amespath}mapproject_single {dem} {img} {img_with_rpc} {img[:-4]}_{ext}.tif --threads 0 -t rpc --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+        cmd = f"{os.path.join(amespath, 'mapproject_single')} {dem} {img} {img_with_rpc} {img[:-4]}_{ext}.tif --threads 0 -t rpc --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
     else: 
-        cmd = f"{amespath}mapproject_single {dem} {img} {img[:-4]}_{ext}.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+        cmd = f"{os.path.join(amespath, 'mapproject_single')} {dem} {img} {img[:-4]}_{ext}.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr {resolution} --no-bigtiff --tif-compress Deflate --nodata-value -9999"
  
     if ba_prefix is not None: 
         cmd = f"{cmd} --bundle-adjust-prefix {ba_prefix}"

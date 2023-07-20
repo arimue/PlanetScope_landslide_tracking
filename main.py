@@ -117,3 +117,11 @@ plt.tight_layout()
 plt.savefig("./tutorial/figures/velocity_direction.png", dpi = 300)
 
 postprocessing.stack_rasters(matches, prefix_ext = "L3B_polyfit", what = "velocity")
+
+
+#####################################
+#L1B
+aoi = "/home/ariane/Documents/PlanetScope/delMedio/del_medio_aoi.geojson"
+files = glob.glob("/home/ariane/Documents/PlanetScope/delMedio/L1B/group4/*_b2.tif")
+files = files[0:2]
+preprocessing.orthorectify_L1B(amespath, files, demname, aoi, epsg = 32720, pad = 0)

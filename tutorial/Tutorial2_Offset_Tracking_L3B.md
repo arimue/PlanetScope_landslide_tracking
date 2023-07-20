@@ -10,7 +10,7 @@ The correlation with ASP can only be carried out for single-band images. Technic
 import preprocessing_functions as preprocessing
 import glob
 
-work_dir = "./tutorial"
+work_dir = "./tutorial/L3B"
 
 #get a list of all multiband TIFF files that you downloaded
 files = glob.glob("/path/to/downloaded/scenes/jobname_psscene_analytic_sr_udm2/PSScene/*3B_AnalyticMS_SR_clip.tif") 
@@ -57,7 +57,7 @@ To correlate the matched scenes, we will use the functionalities from [Ames Ster
 ``` python
 import asp_helper_functions as asp
 
-amespath = "/your/path/StereoPipeline-3.1.1-date-x86_64-Linux/bin"
+amespath = "/your/path/StereoPipeline-version-date-x86_64-Linux/bin"
 dmaps = asp.correlate_asp_wrapper(amespath, matches, sp_mode = 2, corr_kernel = 35, prefix_ext = "_L3B")
 ```
 

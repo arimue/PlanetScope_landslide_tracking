@@ -281,7 +281,7 @@ def match_all(path, ext = "_b2.tif", dt_min = None):
     return matches
 
 
-def orthorectify_L1B(files, demname, aoi, epsg, amespath, pad = 0):
+def orthorectify_L1B(amespath, files, demname, aoi, epsg, pad = 100):
     """
     Orthorectifies provided L1B data based on the given DEM.
 
@@ -294,9 +294,11 @@ def orthorectify_L1B(files, demname, aoi, epsg, amespath, pad = 0):
         pad (int): Padding value for clipping raw data based on RPCs (default: 0).
 
     """
+    #TODO: implement cleanup
     ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
 
     for f in files: 
+        #TODO: size estimation works not 100% well yet
         #its best to roughly clip before mapprojection, otherwise the process takes long
         clip = helper.clip_raw(f, ul_lon, ul_lat, xsize+pad, ysize+pad, demname)
         mp = asp.mapproject(amespath, clip, demname, epsg = epsg)
