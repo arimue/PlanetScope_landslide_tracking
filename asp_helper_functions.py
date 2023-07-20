@@ -154,7 +154,7 @@ def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, 
     
             
 
-def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix = None, overwrite = False):
+def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix = None, corr_kernel = 35, overwrite = False):
     
     #TODO implement check that the epsg is always a projected EPSG
     if prefix is None: 
@@ -164,8 +164,9 @@ def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix 
         prefix = f"{id1}_{id2}"
         
     print(f"All outputs will be saved with the prefix {prefix}.")
-#TODO: implement buffer for aoi
+    #TODO: implement buffer for aoi
     if aoi is not None:
+        assert refdem is not None, "Need to provide a reference DEM when working with AOI to guess coodinates."
         #TODO: implement epsg finder
         #TODO: implement GSD finder
         ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg, gsd = 4)
@@ -176,30 +177,29 @@ def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix 
     path, fn1 = os.path.split(img1)
     _, fn2 = os.path.split(img2)
         
-    if not (os.path.isfile(f"bundle_adjust/{prefix}-{fn1[:-4]}.adjust") and os.path.isfile(f"bundle_adjust/{prefix}-{fn2[:-4]}.adjust")) or overwrite:
-        cmd = f"{amespath}bundle_adjust -t rpc {img1} {img2} -o {path}/bundle_adjust/{prefix}"
+    if (not (os.path.isfile(f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}.adjust") and os.path.isfile(f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust"))) or overwrite:
+        cmd = f"{os.path.join(amespath, 'bundle_adjust')} -t rpc {img1} {img2} -o {path}/bundle_adjust/{prefix}"
         subprocess.run(cmd, shell = True)
     else:
         print("Using existing bundle adjustment files.")
         
-    if not os.path.isfile(f"{path}/stereo_run1/{prefix}-PC.tif") or overwrite:
-        cmd = f"{amespath}parallel_stereo {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel 65 65 --subpixel-kernel 75 75" 
+    if (not os.path.isfile(f"{path}/stereo_run1/{prefix}-PC.tif")) or overwrite:
+        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10}" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run1/{prefix}-PC.tif")
     
-    if not os.path.isfile(f"{path}/point2dem_run1/{prefix}-DEM.tif") or overwrite:
-        cmd = f"{amespath}point2dem {path}/stereo_run1/{prefix}-PC.tif --tr 90 --t_srs EPSG:{epsg} -o {path}/point2dem_run1/{prefix}" 
+    if (not os.path.isfile(f"{path}/point2dem_run1/{prefix}-DEM.tif")) or overwrite:
+        cmd = f"{os.path.join(amespath, 'point2dem')} {path}/stereo_run1/{prefix}-PC.tif --tr 90 --t_srs EPSG:{epsg} -o {path}/point2dem_run1/{prefix}" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using existing DEM {path}/point2dem_run1/{prefix}-DEM.tif")
     
     #need to use the actual mapproject command, not mapproject_single to keep the rpc information 
     
-    
-    cmd = f"{amespath}mapproject {path}/point2dem_run1/{prefix}-DEM.tif {img1} {img1[:-4]}_mp.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr 3 --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+    cmd = f"{os.path.join(amespath, 'mapproject')} {path}/point2dem_run1/{prefix}-DEM.tif {img1} {img1[:-4]}_mp.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr 3 --no-bigtiff --tif-compress Deflate --nodata-value -9999"
     subprocess.run(cmd, shell = True)
-    cmd = f"{amespath}mapproject {path}/point2dem_run1/{prefix}-DEM.tif {img2} {img2[:-4]}_mp.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr 3 --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+    cmd = f"{os.path.join(amespath, 'mapproject')} {path}/point2dem_run1/{prefix}-DEM.tif {img2} {img2[:-4]}_mp.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr 3 --no-bigtiff --tif-compress Deflate --nodata-value -9999"
     subprocess.run(cmd, shell = True)
     
     mp1 = img1[:-4]+"_mp.tif"
@@ -210,14 +210,14 @@ def dem_pipeline(amespath, img1, img2, refdem, aoi = None, epsg = 32720, prefix 
     shutil.copyfile(f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}.adjust", f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}_mp.adjust")
     shutil.copyfile(f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust", f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}_mp.adjust")
     
-    if not os.path.isfile(f"{path}/stereo_run2/{prefix}-PC.tif") or overwrite:
-        cmd = f"{amespath}parallel_stereo {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 65 65 --subpixel-kernel 75 75" 
+    if (not os.path.isfile(f"{path}/stereo_run2/{prefix}-PC.tif")) or overwrite:
+        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 65 65 --subpixel-kernel 75 75" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run2/{prefix}-PC.tif")
     
-    if not os.path.isfile(f"{path}/point2dem_run2/{prefix}-DEM.tif") or overwrite:
-        cmd = f"{amespath}point2dem {path}/stereo_run2/{prefix}-PC.tif --tr 30 --t_srs EPSG:{epsg} --dem-hole-fill-len 10 -o {path}/point2dem_run2/{prefix}" 
+    if (not os.path.isfile(f"{path}/point2dem_run2/{prefix}-DEM.tif")) or overwrite:
+        cmd = f"{os.path.join(amespath, 'point2dem')} {path}/stereo_run2/{prefix}-PC.tif --tr 30 --t_srs EPSG:{epsg} --dem-hole-fill-len 10 -o {path}/point2dem_run2/{prefix}" 
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using existing DEM {path}/point2dem_run2/{prefix}-DEM.tif")
