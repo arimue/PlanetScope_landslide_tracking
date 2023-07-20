@@ -24,6 +24,7 @@ asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = demname
 ```
 
 You will find the final output DEM at 30 m resolution in the newly created directory `point2dem_run2` under the name `[id_img1]_[id_img2]-DEM.tif`. Check if the surface is smooth and void free. If there are severe artifacts, try to rerun with a larger correlation kernel or pick a different image pair.
+
 <img src='./figures/dem_hs.jpeg' width='500'>
 
 ## Step 3: DEM alignment
