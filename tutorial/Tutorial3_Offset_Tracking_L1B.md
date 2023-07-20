@@ -47,7 +47,6 @@ dmaps = asp.correlate_asp_wrapper(amespath, matches, sp_mode = 2, corr_kernel = 
 ```
 ## Step 6: Apply polynomial fit
 ``` python
-demname = "/path/to/a/DEM.tif"
 dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "_L1B", order = 2, demname = demname)
 ```
 ## Step 7: Calculate velocity
@@ -56,4 +55,6 @@ import postprocessing_functions as postprocessing
 
 vels = postprocessing.calc_velocity_wrapper(matches, prefix_ext = "_L1B_polyfit")
 ```
+
+For the Del Medio landslide, we found that the orthorectification error was already significantly reduced when projecting the L1B images onto the Copernicus DEM instead of the SRTM DEM. To obtain an even more up-to-date topography, you can also attempt to use PlanetScope L1B data to build a smooth, low-resolution DEM that can then be used as reference during orthorectification. The DEM generation is documented in [Tutorial 4](./tutorial/Tutorial4_DEM_Building.md).
 
