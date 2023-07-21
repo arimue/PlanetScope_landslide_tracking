@@ -1,26 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Created on Thu Mar  2 22:48:36 2023
-
-@author: ariane
-"""
-
 
 import pandas as pd
-import asp_helper_functions as asp
-from helper_functions import get_scene_id, get_date, read_file, copy_rpcs, save_file, read_transform, get_extent, min_max_scaler, read_meta
+from helper_functions import get_scene_id, get_date, read_file, save_file, read_transform, get_extent, read_meta
 import datetime, os, subprocess
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 from tqdm import tqdm
 import rasterio
-from scipy.stats import circmean, circstd, circvar
-from sklearn.cluster import KMeans
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import pairwise_distances
-import cv2
+from scipy.stats import circmean, circstd
 
 
 def calc_velocity(fn, dt, fixed_res = None, medShift = False):
@@ -195,146 +183,6 @@ def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True):
     return mean, std, median, p25, p75
 
 
-def compare_surroundings_to_aoi(matchfile, aoi, prefixext = "L3B"):
-    
-    df = pd.read_csv(matchfile)
-    path,_ = os.path.split(matchfile)
-
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
-    
-    if os.path.isfile("./temp.tif"):
-        os.remove("./temp.tif")
-        
-    diffsdx = []
-    diffsdy = []
-        
-    for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
-        fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
-        diffdx = np.nan
-        diffdy = np.nan
-        
-        if os.path.isfile(fn):
-            
-            dx = read_file(fn,1)
-            dy = read_file(fn,2)
-            dmask = read_file(fn,3)
-            dx[dmask == 0] = np.nan
-            dy[dmask == 0] = np.nan
-            
-            if not os.path.isfile("./temp.tif"):
-                #only calculating the mask once - all images should have the same extent
-                #rasterize aoi to find the pixels inside
-                extent = get_extent(fn)
-                resolution = read_transform(fn)[0]
-                #TODO: catch AOI having a different CRS that mapprojected rasters!
-                cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
-                subprocess.run(cmd, shell = True)
-
-            mask = read_file("./temp.tif")
-              
-            dx_aoi = dx.copy()
-            dy_aoi = dy.copy()
-            
-            dx_aoi[mask == 0] = np.nan
-            dy_aoi[mask == 0] = np.nan
-            
-            mdx_aoi = np.nanmean(dx_aoi)
-            mdy_aoi = np.nanmean(dy_aoi)
-            
-            diffdx = abs(mdx_aoi)-abs(np.nanmean(dx))
-            diffdy = abs(mdy_aoi)-abs(np.nanmean(dy))
-
-        diffsdx.append(diffdx)
-        diffsdy.append(diffdy)
-        
-    df["diff_dx"] = diffsdx
-    df["diff_dy"] = diffsdy
-    
-    
-    df.to_csv(matchfile[:-4]+"_offset_aoi_diff.csv", index = False)
-    
-    return df
-
-def compare_two_aois(matchfile, aoi, level=3, prefixext="L3B"):
-    # aoi should have two polygons with an attribute field called "id" containing the values 1 and 2
-    df = pd.read_csv(matchfile)
-    path, _ = os.path.split(matchfile)
-
-    df["id_ref"] = df.ref.apply(get_scene_id, level=level)
-    df["id_sec"] = df.sec.apply(get_scene_id, level=level)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
-
-    if os.path.isfile("./temp.tif"):
-        os.remove("./temp.tif")
-
-    diffs_dx_mean = []    
-    diffs_dy_mean = []    
-    diffs_dx_median = []  
-    diffs_dy_median = []
-
-    for idx, row in tqdm(df.iterrows(), total=df.shape[0]):
-        fn = os.path.join(path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
-        diffdx_mean = np.nan
-        diffdy_mean = np.nan
-        diffdx_median = np.nan
-        diffdy_median = np.nan
-
-        if os.path.isfile(fn):
-            dx = read_file(fn, 1)
-            dy = read_file(fn, 2)
-            dmask = read_file(fn, 3)
-            dx[dmask == 0] = np.nan
-            dy[dmask == 0] = np.nan
-
-            if not os.path.isfile("./temp.tif"):
-                # only calculating the mask once - all images should have the same extent
-                # rasterize aoi to find the pixels inside
-                extent = get_extent(fn)
-                resolution = read_transform(fn)[0]
-                # TODO: catch AOI having a different CRS that mapprojected rasters!
-                cmd = f"gdal_rasterize -tr {resolution} {resolution} -a id -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
-                subprocess.run(cmd, shell=True)
-
-            mask = read_file("./temp.tif")
-
-            dx_aoi1 = dx.copy()
-            dy_aoi1 = dy.copy()
-
-            dx_aoi1[mask != 1] = np.nan
-            dy_aoi1[mask != 1] = np.nan
-
-            dx_aoi2 = dx.copy()
-            dy_aoi2 = dy.copy()
-
-            dx_aoi2[mask != 2] = np.nan
-            dy_aoi2[mask != 2] = np.nan
-
-            diffdx_mean = np.nanmean(dx_aoi2) - np.nanmean(dx_aoi1)
-            diffdy_mean = np.nanmean(dy_aoi2) - np.nanmean(dy_aoi1)
-
-            diffdx_median = np.nanmedian(dx_aoi2) - np.nanmedian(dx_aoi1)
-            diffdy_median = np.nanmedian(dy_aoi2) - np.nanmedian(dy_aoi1)
-
-        diffs_dx_mean.append(diffdx_mean)
-        diffs_dy_mean.append(diffdy_mean)
-        diffs_dx_median.append(diffdx_median)
-        diffs_dy_median.append(diffdy_median)
-
-    df["diff_dx_mean"] = diffs_dx_mean
-    df["diff_dy_mean"] = diffs_dy_mean
-    df["diff_dx_median"] = diffs_dx_median
-    df["diff_dy_median"] = diffs_dy_median
-
-    df.to_csv(matchfile[:-4] + "_offset_two_aois_compared.csv", index=False)
-
-    return df
-
-
-
 def get_std_iqr(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
     
     df = pd.read_csv(matchfile)
@@ -486,80 +334,6 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
     df = pd.concat([df, statsdf], axis = 1)
     
     df.to_csv(f"{path}/velocity_in_aoi_{matchfn[:-4]}.csv", index = False)
-
-
-        
-def get_stats_for_entire_raster(matchfile, prefixext = "L3B", take_velocity = True):
-    #good for heatmaps
-    df = pd.read_csv(matchfile)
-    path,_ = os.path.split(matchfile)
-    if os.path.isfile("./temp.tif"):
-        os.remove("./temp.tif")
-
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
-    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
-
-    df["dt"]  = df.date_sec - df.date_ref
-
-    #extract statistics from disparity files
-    if take_velocity:
-        print("Getting velocity stats...")
-        prefixext += "_velocity"
-        stats = np.zeros((len(df), 5))
-        stats[:] = np.nan
-        colnames = ["v_median", "v_p25", "v_p75", "v_mean", "v_std"]
-
-    else: 
-        print("Getting dx/dy stats...") #use the mapprojected version to make sure that raster res is exactly 3 m 
-        stats = np.zeros((len(df), 10))
-        stats[:] = np.nan
-        colnames = ["dx_median", "dx_p25", "dx_p75", "dx_mean", "dx_std", "dy_median", "dy_p25", "dy_p75", "dy_mean", "dy_std",]
-
-
-    for index, row in tqdm(df.iterrows(), total=df.shape[0]):
-
-        disp = os.path.join(row.path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
-
-        if os.path.isfile(disp):
-            if take_velocity:
-                vel = read_file(disp)
-                stats[index, 0] = np.nanmedian(vel)
-                stats[index, 1] = np.nanpercentile(vel, 25)
-                stats[index, 2] = np.nanpercentile(vel, 75)
-                stats[index, 3] = np.nanpmean(vel)
-                stats[index, 4] = np.nanstd(vel)
-            else:
-                count = read_meta(disp)["count"]
-                
-                dx = read_file(disp)
-                dy = read_file(disp, b = 2)
-                
-                if count == 3:
-                    mask = read_file(disp, b = 3)
-                    dx[mask == 0] = np.nan
-                    dy[mask == 0] = np.nan
-                stats[index, 0] = np.nanmedian(dx)
-                stats[index, 1] = np.nanpercentile(dx, 25)
-                stats[index, 2] = np.nanpercentile(dx, 75)
-                stats[index, 3] = np.nanmean(dx)
-                stats[index, 4] = np.nanstd(dx)
-                
-                stats[index, 5] = np.nanmedian(dy)
-                stats[index, 6] = np.nanpercentile(dy, 25)
-                stats[index, 7] = np.nanpercentile(dy, 75)
-                stats[index, 8] = np.nanmean(dy)
-                stats[index, 9] = np.nanstd(dy)
-
-            
-    out = pd.DataFrame(stats, columns = colnames)
-    out = pd.concat([df, out], axis = 1)
-
-    out.to_csv(f"{df.path.iloc[0]}/stats{prefixext}.csv", index = False)
-    
-
 
 
 def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False):
