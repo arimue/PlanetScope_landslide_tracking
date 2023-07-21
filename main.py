@@ -23,7 +23,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 # work_dir = "/home/ariane/Documents/PlanetScope/delMedio/L3B/group3/"
 # aoi = os.path.join("./tutorial/","test_aoi.geojson") #TODO: check that AOI is in EPSG:4326, else reproject
 # instrument = "PSB.SD"
-# amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin"
+amespath = "/home/ariane/Downloads/StereoPipeline-3.1.1-alpha-2022-10-16-x86_64-Linux/bin"
 # # searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.1, date_start = "2020-03-01", date_stop = "2023-06-30")
 # # scenes = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, min_overlap = 99)
 # # groups = search.find_common_perspectives(scenes, va_diff_thresh = 0.6, min_group_size = 5, min_dt = 30, searchfile = searchfile)
@@ -130,10 +130,41 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 ####
 #DEM gen
-amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
-img1 = "./delMedio/L1B/test/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"
-img2 = "./delMedio/L1B/test/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"
-aoi = "./delMedio/L1B/test/dem_aoi.geojson"
+#amespath = "/raid-manaslu/amueting/StereoPipeline-3.1.1-alpha-2022-07-29-x86_64-Linux/bin/"
+img1 = "/home/ariane/Documents/PlanetScope/delMedio/L1B/test/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"
+img2 = "/home/ariane/Documents/PlanetScope/delMedio/L1B/test/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"
+aoi = "/home/ariane/Documents/PlanetScope/delMedio/L1B/test/dem_aoi.geojson"
 
 #asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = "./delMedio/L1B/test/output_COP30.tif")
-opt.disparity_based_DEM_alignment(amespath, img1, img2, "./delMedio/L1B/test/point2dem_run2/20220907_140709_64_24a3_20220912_141056_91_2486-DEM_final.tif", "./delMedio/L1B/test/output_COP30.tif", epsg = 32720, iterations = 3)
+opt.disparity_based_DEM_alignment(amespath, img1, img2, "/home/ariane/Documents/PlanetScope/delMedio/L1B/test/output_COP30.tif", "/home/ariane/Documents/PlanetScope/delMedio/L1B/test/output_COP30.tif", epsg = 32720, aoi = aoi, iterations = 3)
+
+p = "/home/ariane/Documents/PlanetScope/delMedio/L1B/test/"
+dem = helper.read_file(p+"output_COP30_xyzaligned_it1.tif")
+
+pd1 = helper.read_file(p+"20220907_140709_64_24a3_20220912_141056_91_2486-DEM_final.tif")
+pd1[pd1 < 0] = np.nan
+pd2 = helper.read_file(p+"20220907_140709_64_24a3_20220912_141056_91_2486-DEM_final_xyzaligned_it0.tif")
+pd3 = helper.read_file(p+"20220907_140709_64_24a3_20220912_141056_91_2486-DEM_final_xyzaligned_it1.tif")
+
+fig, ax = plt.subplots(1, 3, figsize=(12, 4))
+im0 = ax[0].imshow(pd1-dem, vmin=100, vmax=300, cmap="coolwarm")
+im1 = ax[1].imshow(pd2-dem, vmin=-75, vmax=75, cmap="coolwarm")
+im2 = ax[2].imshow(pd3-dem, vmin=-75, vmax=75, cmap="coolwarm")
+ax[0].set_title("dx")
+ax[1].set_title("dy")
+
+ax[2].set_title("mask")
+
+# Add colorbars
+divider0 = make_axes_locatable(ax[0])
+cax0 = divider0.append_axes("right", size="5%", pad=0.05)
+cbar0 = fig.colorbar(im0, cax=cax0, label='Offset [pix]')
+
+divider1 = make_axes_locatable(ax[1])
+cax1 = divider1.append_axes("right", size="5%", pad=0.05)
+cbar1 = fig.colorbar(im1, cax=cax1, label='Offset [pix]')
+
+divider2 = make_axes_locatable(ax[2])
+cax2 = divider2.append_axes("right", size="5%", pad=0.05)
+cbar2 = fig.colorbar(im2, cax=cax2, label='Mask value')
+plt.tight_layout()

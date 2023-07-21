@@ -48,7 +48,7 @@ def polyXYZ3(X, a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t):
 
 
 def find_tiepoints_SIFT(img1, img2, min_match_count = 100, plot = False):
-
+    # alternative to full image correlation. Faster but irregular spaced tiepoints 
     # image1 = cv.imread(img1) 
     # image2 = cv.imread(img2) 
     # gray1 = cv.cvtColor(image1, cv.COLOR_BGR2GRAY)
@@ -111,81 +111,6 @@ def find_tiepoints_SIFT(img1, img2, min_match_count = 100, plot = False):
     return df
 
 
-def improve_L3B_geolocation_before_correlation(img1, img2, order = 3, plot = False):
-    df = find_tiepoints_SIFT(img1, img2, plot = plot)
-
-    #!!!! assumes that images are clipped to the same aoi
-    #TODO: catch this
-    image2 = helper.read_file(img2)
-
-
-    df["xdiff"] = df.x_img2 - df.x_img1
-    df["ydiff"] = df.y_img2 - df.y_img1
-    
-    #remove matches with really large distances
-    pxup = np.nanpercentile(df.xdiff, 99)
-    pyup = np.nanpercentile(df.ydiff, 99)
-    pxlow = np.nanpercentile(df.xdiff, 1)
-    pylow = np.nanpercentile(df.ydiff, 1)
-    
-    df = df.loc[df.xdiff >= pxlow]
-    df = df.loc[df.xdiff <= pxup]
-    df = df.loc[df.ydiff >= pylow]
-    df = df.loc[df.ydiff <= pyup]
-    df = df.reset_index(drop = True)
-    
-    xgrid, ygrid = np.meshgrid(np.arange(0,image2.shape[1], 1), np.arange(0, image2.shape[0], 1))
-
-    
-    if order == 1:
-        xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY1, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
-        xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY1, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
-            
-        dgx = polyXY1((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
-        dgy = polyXY1((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
-        
-    elif order == 2:
- 
-        xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY2, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
-        xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY2, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
-            
-        dgx = polyXY2((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
-        dgy = polyXY2((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
-        
-    elif order == 3:
- 
-        xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY3, xdata = (df.x_img2,df.y_img2), ydata = df.xdiff)
-        xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY3, xdata = (df.x_img2,df.y_img2), ydata = df.ydiff)
-            
-        dgx = polyXY3((xgrid.flatten(),ygrid.flatten()), *xcoeffs1)
-        dgy = polyXY3((xgrid.flatten(),ygrid.flatten()), *xcoeffs2)
-    
-    else:
-        print("Maximum order of polynomial fit is 3. Please pick a valid number!")
-        return
-    
-    if plot:
-        fig, ax = plt.subplots(1, 2, figsize=(12, 6))
-
-        p1 = ax[0].imshow(dgx.reshape(xgrid.shape), cmap="magma")
-        ax[0].set_title("X fit")
-
-        p2 = ax[1].imshow(dgy.reshape(xgrid.shape), cmap="magma")
-        ax[1].set_title("Y fit")
-        fig.colorbar(p1, ax=ax[0])
-        fig.colorbar(p2, ax=ax[1])
-        plt.show()
-        
-    dgx = (xgrid+dgx.reshape(xgrid.shape)).astype(np.float32)
-    dgy = (ygrid +dgy.reshape(xgrid.shape)).astype(np.float32)
-    
-    image2_remap = cv.remap(image2, dgx, dgy, interpolation = cv.INTER_LINEAR)
-    
-    helper.save_file([image2_remap], img2, img2[:-4]+"_remapped.tif")
-    
-    return img2[:-4]+"_remapped.tif"
-
-
 def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_tr, cross_track_weight = 10):
     a,b = params
 
@@ -222,11 +147,6 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
     east_diff = abs(np.array([c[0] for c in coords_proj_img1]) - np.array([c[0] for c in coords_proj_img2]))
     north_diff = abs(np.array([c[1] for c in coords_proj_img1]) - np.array([c[1] for c in coords_proj_img2]))
     
-    
-    # plt.figure()
-    # plt.scatter(x_img2, y_img2, c = east_diff, vmin = -10, vmax = 10, cmap = "coolwarm")
-    # plt.title(f"a = {a}, b = {b}")
-    
     #penalize inf values
     east_diff[~np.isfinite(east_diff)] = 100
     north_diff[~np.isfinite(north_diff)] = 100
@@ -234,8 +154,18 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
     return cross_track_weight * east_diff.sum() + north_diff.sum()
 
   
-def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, iterations = 1):
+def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, aoi = None, iterations = 1):
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
+    
+    if aoi is not None:
+        #will clip images if AOI is provided. Else assumes that clipped images are passed
+        ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
+        img1 = helper.clip_raw(img1, ul_lon, ul_lat, xsize, ysize, refdem)
+        ul_lon, ul_lat, xsize, ysize = helper.size_from_aoi(aoi, epsg = epsg, gsd = 4)
+        img2 = helper.clip_raw(img2, ul_lon, ul_lat, xsize, ysize, refdem)
+    else:
+        print("Assuming that provided images are clipped...")
+        
     for i in range(iterations):
         id1 = helper.get_scene_id(img1)
         id2 = helper.get_scene_id(img2)
@@ -276,7 +206,7 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, i
             #TODO: allow adjustment of ames parameters
             print("Generating L1B disparity map to find tiepoints across entire scene...")
     
-            stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
+            stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 3, method = "asp_bm", nodata_value = None, corr_kernel = 35)
             asp.clean_asp_files(stereopath, prefix)
             
         else:

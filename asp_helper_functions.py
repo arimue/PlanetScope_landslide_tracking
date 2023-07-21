@@ -259,7 +259,7 @@ def image_align_asp(amespath, img1, img2, prefix = None):
     folder = img1.replace(img1.split("/")[-1], "")
     print(f"Data will be saved under {folder}image_align/")
     if prefix: 
-        cmd = f"{os.path.join(amespath, 'image_align')} {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine --disparity-params '{folder}stereo/{prefix}-F.tif 10000' --inlier-threshold 100" 
+        cmd = f"{os.path.join(amespath, 'image_align')} {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine --disparity-params '{folder}disparity_maps/{prefix}-F.tif 10000' --inlier-threshold 100" 
     else:
         cmd = f"{os.path.join(amespath, 'image_align')} {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine  --inlier-threshold 100" 
 
