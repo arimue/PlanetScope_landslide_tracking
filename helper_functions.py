@@ -3,7 +3,6 @@
 
 import rasterio
 import os
-import fnmatch
 import datetime
 import subprocess
 import json
@@ -11,27 +10,21 @@ import numpy as np
 from osgeo import gdal, gdalconst
 from pyproj import Transformer, CRS
 
-def list_files(dir, pattern):
-    r = []
-    for root, dirs, files in os.walk(dir):
-        for name in files:
-            if fnmatch.fnmatch(name, pattern):
-                r.append(os.path.join(root, name))
-    return r
-
-#raster stuff
 def read_file(file, b=1):
     with rasterio.open(file) as src:
         return(src.read(b))
+    
 
 def read_transform(file):
     with rasterio.open(file) as src:
         return(src.transform)
     
+    
 def read_meta(file):
     with rasterio.open(file) as src:
         meta = src.meta
         return meta
+    
 
 def get_epsg(file):
     meta = read_meta(file)
@@ -41,6 +34,7 @@ def get_epsg(file):
     else:
         print("No EPSG found. Check your data.")
         return
+    
     
 def get_extent(file):
     meta = read_meta(file)
@@ -55,7 +49,7 @@ def get_extent(file):
     
 
 def save_file(bands, ref, outname, out_dir= ""):
-    #save raste rusing metadata information from a reference file. 
+    #save raster reusing metadata information from a reference file. 
     #get metadata from reference file 
     with rasterio.open(ref) as src:
         meta = src.meta
@@ -63,7 +57,6 @@ def save_file(bands, ref, outname, out_dir= ""):
     
     meta.update(count= len(bands))
 
-    
     with rasterio.open(f"{out_dir}{outname}", 'w', **meta, compress="DEFLATE") as dst:
         
         for i, band in enumerate(bands): 
@@ -72,6 +65,7 @@ def save_file(bands, ref, outname, out_dir= ""):
         
     print(f"I have written {outname}!")
         
+    
 def rasterValuesToPoint(xcoords, ycoords, rastername):
     #replace infinite values with 0. They will fall outside of the DEM and will be assigned the nodata value. 
     xcoords = np.array(xcoords)
@@ -85,11 +79,6 @@ def rasterValuesToPoint(xcoords, ycoords, rastername):
         
     epsg = int(meta["crs"]['init'].lstrip('epsg:'))
     #TODO: implement check for EPSG but do not automatically reproject everything to 4326
-    # if epsg != 4326:
-    #     print("Reprojecting raster to EPSG 4326 ...")
-    #     cmd = f"gdalwarp -t_srs epsg:4326 -r bilinear -overwrite -co COMPRESS=DEFLATE -co PREDICTOR=2 -co ZLEVEL=9 {rastername} {rastername[:-4]}_epsg4326.tif"
-    #     subprocess.run(cmd, shell = True)
-    #     rastername = f"{rastername[:-4]}_epsg4326.tif"
 
     src = rasterio.open(rastername)
     
@@ -101,6 +90,7 @@ def rasterValuesToPoint(xcoords, ycoords, rastername):
         out = out.flatten()
     return out
 
+
 def min_max_scaler(x):
     if len(x)>1:
         return (x-np.nanmin(x))/(np.nanmax(x)-np.nanmin(x))
@@ -109,13 +99,24 @@ def min_max_scaler(x):
     else: 
         return np.array([])
     
+    
 def fixed_val_scaler(x, xmin, xmax):
     return (x-xmin)/(xmax-xmin)
 
     
 def size_from_aoi(aoi, gsd, epsg):
-
-    #AOI has to be a rectangle 
+    """
+    Calculate the size (upper-left corner coordinates, x size, and y size) of a rectangle-shaped AOI.
+    
+    Parameters:
+    aoi (str): Path to a GeoJSON file containing the coordinates of the AOI.
+    gsd (float): Ground sample distance (in meters) of the PlanetScope data covered by the AOI
+    epsg (int): EPSG code of a projected CRS
+    
+    Returns:
+    tuple: A tuple containing the upper-left corner longitude, upper-left corner latitude, x size, and y size.
+    
+    """
     with open(aoi) as f:
          gj = json.load(f)
          
@@ -123,7 +124,7 @@ def size_from_aoi(aoi, gsd, epsg):
     
     if len(coords) !=4:
         print("AOI has to be a rectangle!")
-        #return
+        return
     #get corner coords of polygon by splitting in upper and lower half
     yc = np.unique([c[1] for c in coords])
 
@@ -154,6 +155,7 @@ def size_from_aoi(aoi, gsd, epsg):
 
     return ul_lon, ul_lat, xsize, ysize
 
+
 def warp(img, epsg, res = None):
     
     if res is not None: 
@@ -163,11 +165,15 @@ def warp(img, epsg, res = None):
         outname = f"{img[:-4]}_epsg{epsg}.tif"
         cmd = f"gdalwarp -t_srs EPSG:{epsg} -co COMPRESS=DEFLATE -r bilinear -overwrite -co ZLEVEL=9 -co PREDICTOR=2 {img} {outname}"
     subprocess.run(cmd, shell = True)
+    
     return outname
 
+
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
+    
     #gets approximate dimensions for clipping raw data from aoi
     #check that CRS = epsg:4326 otherwise the RPC projection will result in wrong estimages
+    
     epsg = get_epsg(demname)
     
     if epsg != 4326:
@@ -185,7 +191,9 @@ def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
         print(result.stderr)
     return f"{img[:-4]}_clip.tif"
 
+
 def clip_mp_projwin(img, ul_lon, ul_lat, xsize, ysize):
+    
     #clip mapprojected images (no transformation to image_coords required)
 
     cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -projwin {ul_lon} {ul_lat} {xsize} {ysize} {img} {img[:-4]}_clip.tif"
@@ -194,8 +202,11 @@ def clip_mp_projwin(img, ul_lon, ul_lat, xsize, ysize):
         print(result.stderr)
     return f"{img[:-4]}_clip.tif"
 
+
 def clip_mp_cutline(img, cutline):
+    
     #clip mapprojected images (no transformation to image_coords required)
+    
     res = read_transform(img)[0]
     cmd = f"gdalwarp -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -cutline {cutline} -overwrite -crop_to_cutline -tr {res} {res} {img} {img[:-4]}_clip.tif"
     result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
@@ -203,9 +214,12 @@ def clip_mp_cutline(img, cutline):
         print(result.stderr)
     return f"{img[:-4]}_clip.tif"
 
+
 def copy_rpcs(rpc_fn, non_rpc_fn):
+    
     #copy RPC header from one file to the other
-    #after  https://github.com/uw-cryo/skysat_stereo/blob/31508598757f1b9be3a85b381fea50ccf9d398ae/skysat_stereo/skysat.py
+    #from  https://github.com/uw-cryo/skysat_stereo/blob/31508598757f1b9be3a85b381fea50ccf9d398ae/skysat_stereo/skysat.py
+    
     rpc_img = gdal.Open(rpc_fn, gdalconst.GA_ReadOnly)
     non_rpc_img = gdal.Open(non_rpc_fn, gdalconst.GA_Update)
     rpc_data = rpc_img.GetMetadata('RPC')
@@ -214,13 +228,12 @@ def copy_rpcs(rpc_fn, non_rpc_fn):
     del(rpc_img)
     del(non_rpc_img)
     
-#PS scene specific
+    
 def get_scene_id(fn):
+    
     #extract the scene id from a PS scene filename
     #assumes the filename still begins with the scene ID (should be default when downloading data)
-        
     
-    #make sure to remove the path if still part of the image
     _, fn = os.path.split(fn) 
     
     #determine processing level of scenes
@@ -240,12 +253,17 @@ def get_scene_id(fn):
         print("Couldn't guess the instrument type. Have you modifies filenames?")
         return
     return scene_id
+
         
 def get_date(scene_id):
+    
     #strip the time from th PS scene id
+    
     return datetime.datetime.strptime(scene_id[0:8], "%Y%m%d")
 
+
 def match_raster_size_and_res(r1, r2):
+    
     epsg = get_epsg(r1)
     xmin, ymin, xmax, ymax = get_extent(r1)
     res = read_transform(r1)[0]
