@@ -112,6 +112,9 @@ def find_tiepoints_SIFT(img1, img2, min_match_count = 100, plot = False):
 
 
 def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_tr, cross_track_weight = 10):
+    
+    #optimization function for disparity based DEM alignment
+    
     a,b = params
 
     if os.path.isfile(demname[:-4]+"_copy.tif"):
@@ -155,6 +158,26 @@ def shift_dem(params, demname, img1, img2, x_img1, y_img1, x_img2, y_img2, proj_
 
   
 def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, aoi = None, iterations = 1):
+    
+        
+    """
+    Perform disparity-based DEM alignment by minimizing the distances between tiepoints found in two images
+    when projected into object space using the DEM.
+    
+      Parameters:
+    amespath (str): Path to the directory containing the ASP executables.
+    img1 (str): Path to the reference image.
+    img2 (str): Path to the secondary image.
+    demname (str): Path to the DEM that should be aligned.
+    refdem (str): Path to the reference DEM raster file (will only be used for Z component). 
+    epsg (int): EPSG code specifying a projected CRS.
+    aoi (str, optional): Path to the AOI (Area of Interest) file. Defaults to None and assumes that input images are clipped then.
+    iterations (int, optional): Number of iterations to run the process. Defaults to 1.
+    
+    Returns:
+    Path to aligned DEM
+    """
+
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
     
     if aoi is not None:
@@ -206,7 +229,7 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, a
             #TODO: allow adjustment of ames parameters
             print("Generating L1B disparity map to find tiepoints across entire scene...")
     
-            stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 3, method = "asp_bm", nodata_value = None, corr_kernel = 35)
+            stereopath = asp.correlate_asp(amespath, img1, img2, prefix = prefix, session = "rpc", sp_mode = 2, method = "asp_bm", nodata_value = None, corr_kernel = 35)
             asp.clean_asp_files(stereopath, prefix)
             
         else:
@@ -286,6 +309,9 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, a
     return demname
 
 def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
+    
+    #removes high disparities based on percentile cut
+    
     perc1 = np.nanpercentile(dat, plow)
     perc2 = np.nanpercentile(dat, pup)
     
@@ -295,7 +321,20 @@ def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
     return dat
 
 def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 5, plimup = 95):
+    """
+    Apply polynomial fit to the disparity maps from the provided matches.
     
+    Parameters
+    matches (str or pd.DataFrame): Path to the matchfile or pandas DataFrame containing the match information.
+    prefix_ext (str, optional): Prefix extension for filenames. Defaults to an empty string.
+    order (int, optional): Order of the polynomial fit. Defaults to 2.
+    demname (str, optional): Path to the DEM raster file. If provided, an elevation component will be incoporated in the polyfit.
+    plimlow (float, optional): Lower percentile for outlier removal. Defaults to 5.
+    plimup (float, optional): Upper percentile for outlier removal.. Defaults to 95.
+    
+    Returns:
+    list: List of filenames of the disparity maps with the applied polynomial fit.
+    """
     if type(matches) == str:
         try:
             df = pd.read_csv(matches)
@@ -344,9 +383,7 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
                 dem_matched = helper.match_raster_size_and_res(dispfn, demname)
                 zgrid = helper.read_file(dem_matched)
                 #make sure to remove nodata (any negative values)
-                zgrid[zgrid < 0] = np.nan
-                #clipping and resampling DEM to exactly fit the extent and resolution of the disparity raster
-            
+                zgrid[zgrid < 0] = np.nan            
                 fit_data = np.c_[fit_data,helper.min_max_scaler(zgrid.flatten())]
 
             fit_data = fit_data[~np.isnan(fit_data).any(axis=1)]
