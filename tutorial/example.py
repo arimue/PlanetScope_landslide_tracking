@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 """
-Examplary python script for data search, DEM generation and L1B and L3B workflow.
+Exemplary python script for data search, DEM generation and L1B and L3B workflow.
 Paths, parameters and filenames need to be adjusted.
 For details check Tutorials on GitHub.
 """
