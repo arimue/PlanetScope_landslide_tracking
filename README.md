@@ -5,10 +5,10 @@ This repository provides scripts and processing examples for tracking landslides
 ## Prerequisites
 ### Linux OS
 The scripts in this repository rely on functionalities provided by the [Ames Stereo Pipeline](https://stereopipeline.readthedocs.io/en/latest/index.html). ASP builds are available for Linux and macOS. If you are using Windows, you will need to install a Windows Subsystem for Linux in order to run the ASP tools.
-### [Planet](https://www.planet.com/) Account
-To search for and access PlanetScope data via the API, you will need to authenticate with your Planet account. You can find more information on how to get started with Planet [here](https://www.planet.com/get-started/). If you are a university student, faculty member or researcher, you may apply to the Planet [Education and Research Program](https://www.planet.com/markets/education-and-research/).
 ### Python
 The provided code is written in Python and consists of modules that you can import and use in your own Python scripts.
+### [Planet](https://www.planet.com/) Account
+To search for and access PlanetScope data via the API, you will need to authenticate with your Planet account. You can find more information on how to get started with Planet [here](https://www.planet.com/get-started/). If you are a university student, faculty member or researcher, you may apply to the Planet [Education and Research Program](https://www.planet.com/markets/education-and-research/).
 
 ## Installation 
 
