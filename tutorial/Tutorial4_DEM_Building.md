@@ -19,7 +19,7 @@ aoi = "./tutorial/dem_aoi.geojson"
 img1 = "./tutorial/L1B/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"
 img2 = "./tutorial/L1B/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"
 
-asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = demname)
+planet_dem = asp.dem_building(amespath, img1, img2, epsg = 32720, aoi = aoi, refdem = demname)
 
 ```
 
@@ -38,7 +38,7 @@ We found that [demcoreg](https://github.com/dshean/demcoreg) worked well for the
 ``` python
 import optimization_functions as opt
 
-opt.disparity_based_DEM_alignment(amespath, img1, img2, "PlanetScope_DEM.tif", "Copernicus_DEM.tif", epsg = 32720, iterations = 3)
+opt.disparity_based_DEM_alignment(amespath, img1, img2, planet_dem, demname, epsg = 32720, iterations = 3)
 ```
 First, the vertical shift between the PlanetScope DEM and a reference surface is estimated and removed through a first order polynomial fit. Then matching tiepoints are found between the two input images through correlation to obtain an evenly spaced and dense grid of matches. These input images should have been acquired from different perspective so that the orthorectification error signal is strong when the DEM is in the wrong position. Also, the temporal baseline needs to be short, so that the displacement across the entire scene can be assumed ot be zero. For simplicity, you can just use the image pair that went into the DEM generation process. In an iterative process, the tiepoint matches are then projected from image into object space using the RPCs of the images and the DEM at a specific X and Y location. The DEM is shifted until the sum of distances between tiepoint matches is minimal (i.e. no artificial offsets due to orthorectification errors). The whole process can be repeated several times. 
  

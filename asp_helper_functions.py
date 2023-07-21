@@ -31,7 +31,7 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
     print(f"Data will be saved under {os.path.join(folder, 'disparity_maps')}")
     
     if method == "asp_bm":
-        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {img1} {img2} {os.path.join(folder, 'disparity_maps', prefix)} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --subpixel-mode {sp_mode} --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10} --threads 0" 
+        cmd = f"{os.path.join(amespath, 'stereo')} {img1} {img2} {os.path.join(folder, 'disparity_maps', prefix)} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --subpixel-mode {sp_mode} --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10} --threads 0" 
         if nodata_value is not None: 
             cmd = f"{cmd} --nodata-value {nodata_value}"
     else:
@@ -39,7 +39,7 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
         if (corr_kernel > 9) or (corr_kernel%2 == 0):
             print("Correlation kernel size is not suitable for mgm. Pick an odd kernel size <= 9!")
             return
-        cmd = f"{os.path.join(amespath, 'parallel_stereo')} {img1} {img2} {os.path.join(folder, 'disparity', prefix)} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --corr-kernel 9 9 --subpixel-mode {sp_mode} --subpixel-kernel {corr_kernel*2+1} {corr_kernel*2+1} --threads 0" 
+        cmd = f"{os.path.join(amespath, 'stereo')} {img1} {img2} {os.path.join(folder, 'disparity', prefix)} --correlator-mode -t {session} --datum Earth --skip-rough-homography --stereo-algorithm {method} --corr-kernel 9 9 --subpixel-mode {sp_mode} --subpixel-kernel {corr_kernel*2+1} {corr_kernel*2+1} --threads 0" 
 
         if nodata_value is not None: 
             cmd = f"{cmd} --nodata-value {nodata_value}"
@@ -155,7 +155,23 @@ def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, 
             
 
 def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix = None, corr_kernel = 35, overwrite = False):
+    """
+    Builds a Digital Elevation Model (DEM) building using ASP (Ames Stereo Pipeline) and the provided images.
     
+    Parameters:
+    amespath (str): Path to the Ames Stereo Pipeline executable folder.
+    img1 (str): Path to the first input image.
+    img2 (str): Path to the second input image.
+    epsg (int): EPSG code specifying the coordinate system of the output DEM.
+    aoi (str, optional): Path to area of interest to clip the input images (GeoJSON)
+    refdem (str, optional): Path to the reference DEM (required when using AOI).
+    prefix (str, optional): Prefix to be used for the output files.
+    corr_kernel (int, optional): Correlation kernel size for stereo processing, default  = 35.
+    overwrite (bool, optional): If True, existing files will be overwritten.
+    
+    Returns:
+    str: Path to final DEM.
+    """
     #TODO implement check that the epsg is always a projected EPSG
     if prefix is None: 
         id1 = get_scene_id(img1)
@@ -224,6 +240,7 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
         print(f"Using existing DEM {path}/point2dem_run2/{prefix}-DEM.tif")
 
     print("Done!")
+    return f"{path}/point2dem_run2/{prefix}-DEM.tif"
     
     
 def image_align_asp(amespath, img1, img2, prefix = None):
@@ -248,9 +265,20 @@ def image_align_asp(amespath, img1, img2, prefix = None):
 
     subprocess.run(cmd, shell = True)
 
+
 def parse_match_asp(amespath, img1, img2, prefix = "run"):
+    """
+    Convert a .match file (output from image_align) into a readable .txt format.
     
-    #turn a .match file (output from image_align) into readable .txt format 
+    Parameters:
+    amespath (str): Path to the ASP installation.
+    img1 (str): Path to the reference image.
+    img2 (str): Path to the secondary image.
+    prefix (str, optional): Output file prefix (default: "run").
+    
+    Returns:
+    str: Path to the generated .txt file.
+    """
     
     folder = img1.replace(img1.split("/")[-1], "")+"image_align/"
     matchfile = glob.glob(f"{folder}{prefix}-*-clean.match")
@@ -262,9 +290,18 @@ def parse_match_asp(amespath, img1, img2, prefix = "run"):
     subprocess.run(cmd, shell = True)
     return f"{matchfile[:-6]}.txt"
 
+
 def read_match(matchfile):
     
-    #convert a match.txt file to better readable df 
+    """
+    Convert a match.txt file to a better-readable DataFrame.
+    
+    Parameters:
+    matchfile (str): Path to the match.txt file.
+    
+    Returns:
+    pandas.DataFrame: DataFrame containing the x and y coordinates of matched points in both images.
+    """
     
     df = pd.read_csv(matchfile, skiprows = 1, header = None, sep = " ")
     nrIPs = pd.read_csv(matchfile, nrows = 1, header = None, sep = " ")
