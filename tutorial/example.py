@@ -28,7 +28,7 @@ epsg = 32720
 
 ###########DATA#SEARCH#########################################################################################
 searchfile = search.search_planet_catalog(instrument = instrument, aoi = aoi, cloud_cover_max=0.1, date_start = "2020-03-01", date_stop = "2023-06-30")
-scenes = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, min_overlap = 99)
+scenes = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, instrument = instrument, min_overlap = 99)
 groups = search.find_common_perspectives(scenes, va_diff_thresh = 0.6, min_group_size = 5, min_dt = 30, searchfile = searchfile)
 
 ###########L3B#WORKFLOW########################################################################################

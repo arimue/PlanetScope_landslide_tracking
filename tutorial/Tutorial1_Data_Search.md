@@ -27,7 +27,7 @@ If you have drawn a rectangular AOI like me, you may want to adjust it to the sc
 You may have noticed that the search via the Planet SDK has also included scenes that just barely touch the AOI. These will not be very useful for cross correlation. To search for scenes that have a significant amount of overlap with your AOI (99% in this case), run the following:
 
 ``` python
-scenes = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, min_overlap = 99)
+scenes = search.refine_search_and_convert_to_csv(searchfile, aoi = aoi, instrument = instrument, min_overlap = 99)
 ```
 
 This will select the scenes obtained from your initial search that have at least a 99% overlap with the AOI. Scene IDs and acquisition parameters of relevant scenes will be stored as a pandas DataFrame which is useful for further processing. Additionally, the search.geojson file will be updated to only contain scenes that match the new filter criteria. 
