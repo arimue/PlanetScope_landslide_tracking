@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-from helper_functions import get_scene_id, get_date, read_file, save_file, read_transform, get_extent, read_meta, min_max_scaler
+from helper_functions import get_scene_id, get_date, read_file, save_file, read_transform, get_extent, read_meta, min_max_scaler, get_epsg
 import datetime, os, subprocess
 import numpy as np
+from osgeo import ogr
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import rasterio
@@ -137,7 +138,7 @@ def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift 
     
     return out
 
-def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None, take_velocity = True, angles = False):
+def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None, take_velocity = True):
     r[r==-9999] = np.nan
     if not take_velocity:
         if dt is None or resolution is None: 
@@ -148,17 +149,13 @@ def offset_stats_pixel(r, xcoord, ycoord, pad = 0, resolution = None, dt = None,
 
     sample = r[ycoord-pad:ycoord+pad+1, xcoord-pad:xcoord+pad+1]
     
-    if angles: #calculate circular mean for direction
-        mean = np.rad2deg(circmean(np.deg2rad(sample)))
-        p75 = np.nan
-        p25 = np.nan
-        std = np.rad2deg(circstd(np.deg2rad(sample)))
-    else: 
-        mean = np.nanmean(sample)
-        p75 = np.nanpercentile(sample, 75)
-        p25 = np.nanpercentile(sample, 25)
-        std = np.nanstd(sample)
-    return mean, p25, p75, std
+    mean = np.nanmean(sample)
+    median = np.nanmedian(sample)
+    p75 = np.nanpercentile(sample, 75)
+    p25 = np.nanpercentile(sample, 25)
+    std = np.nanstd(sample)
+    
+    return mean, std, median, p25, p75
 
 def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True):
     r[r==-9999] = np.nan
@@ -184,7 +181,7 @@ def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True):
     return mean, std, median, p25, p75
 
 
-def get_std_iqr(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
+def get_std_iqr(matchfile, aoi = None, inverse = False, prefix_ext = "L3B"):
     
     df = pd.read_csv(matchfile)
     path,_ = os.path.split(matchfile)
@@ -204,7 +201,7 @@ def get_std_iqr(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
     iqrsdy = []
     
     for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
-        fn = os.path.join(row.path, f"stereo/{row.id_ref}_{row.id_sec}{prefixext}-F.tif")
+        fn = os.path.join(row.path, f"disparity_maps/{row.id_ref}_{row.id_sec}{prefix_ext}-F.tif")
         stddx = np.nan
         stddy = np.nan
         if os.path.isfile(fn):
@@ -255,7 +252,7 @@ def get_std_iqr(matchfile, aoi = None, inverse = False, prefixext = "L3B"):
     return df
     
 
-def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 0, prefixext = "", max_dt = 10000, take_velocity = True):
+def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 0, prefix_ext = "", max_dt = 10000, take_velocity = True):
     
     assert aoi is not None or (xcoord is not None and ycoord is not None), "Please provide either an AOI (vector dataset) or x and y coordinates!"
    
@@ -286,47 +283,63 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
         colnames = ["vel_mean", "vel_std", "vel_median", "vel_p25", "vel_p75"]
         stats = np.zeros([len(df), 5])
 
-    # else: #TODO: tis needs refinement since I am only mapprojecting the velocity
-    #     print("Using mapprojected dx/dy to generate timeline...") #use the mapprojjected version to make sure that raster res is exactly 3 m 
-    #     ext = "_mp"
-    #     colnames = ["dx", "dx_p25", "dx_p75", "dx_std", "dy", "dy_p25", "dy_p75", "dy_std"]
-    #     angles = False
-    #     timeline_stats = np.zeros([len(timeline), 10])
+    else: 
+        print("Using disparity maps to generate timeline...")
+        ext = ""
+        colnames = ["dx_mean", "dx_std", "dx_median", "dx_p25", "dx_p75", "dy_mean", "dy_std", "dy_median", "dy_p25", "dy_p75"]
+        stats = np.zeros([len(df), 10])
+        
 
     stats[:] = np.nan
 
     for index, row in tqdm(df.iterrows(), total=df.shape[0]):
 
-        disp = f"{row.path}/stereo/{row.id_ref}_{row.id_sec}{prefixext}-F{ext}.tif"
-        #disp = f"{path}/stereo/{row.id_ref}_{row.id_sec}_clip_mp-F_velocity.tif"
+        disp = os.path.join(row.path, "disparity_maps", f"{row.id_ref}_{row.id_sec}{prefix_ext}-F{ext}.tif")
 
 
         if os.path.isfile(disp):
 
-            
-            if aoi is not None:
+            if aoi is not None: #stats in geojson
                 
                 if not os.path.isfile("./temp.tif"):
+                    #check aoi crs
+                    driver = ogr.GetDriverByName("GeoJSON")
+                    ds = driver.Open(aoi)
+                    lyr = ds.GetLayerByIndex(0)
+                    epsg_aoi = lyr.GetSpatialRef().GetAuthorityCode(None)
+                    driver = ds = lyr = None
+                    
+                    #get epsg of disparity raster. assumes that all disp maps will have the same epsg
+                    epsg_disp = get_epsg(disp)
+                    
+                    if int(epsg_disp) != int(epsg_aoi):
+                        print("Reprojecting input GeoJSON to match EPSG of disparity maps...")
+                        cmd = f"ogr2ogr -f 'GeoJSON' {aoi[:-8]}_EPSG{epsg_disp}.geojson {aoi} -s_srs EPSG:{epsg_aoi} -t_srs EPSG:{epsg_disp} "
+                        subprocess.run(cmd, shell = True)
+                        aoi = f"{aoi[:-8]}_EPSG{epsg_disp}.geojson"
+
                     #only calculating the mask once - all images should have the same extent
                     #rasterize aoi to find the pixels inside
                     extent = get_extent(disp)
                     resolution = read_transform(disp)[0]
-                    #TODO: catch AOI having a different CRS that mapprojected rasters!
                     cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
                     subprocess.run(cmd, shell = True)
     
                     mask = read_file("./temp.tif")
                 
-                #get mean in sample region and iqr/p75 (weight) for dx or velocity
-                stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
-                #same for dy or direction
-                #stats[index,4], stats[index,5], stats[index,6], stats[index,7]  = offset_stats_aoi(read_file(disp, 2), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity, angles = angles)
-                
-                if stats[index,0] > 100:
-                    print(f"Warning! {disp} exceeds 100 m.")
-            else:
-                #get mean in sample region and iqr/p75 (weight) for dx or velocity
-                stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                if take_velocity:
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                else:
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_aoi(read_file(disp, 2), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+
+            else: #stats in sample region
+            
+                if take_velocity:
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                else:
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_pixel(read_file(disp, 2), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
 
         else:
           print(f"Warning! Disparity file {disp} not found.")
@@ -334,7 +347,9 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
     statsdf = pd.DataFrame(stats, columns = colnames)
     df = pd.concat([df, statsdf], axis = 1)
     
-    df.to_csv(f"{path}/velocity_in_aoi_{matchfn[:-4]}.csv", index = False)
+    df.to_csv(f"{path}/stats_in_aoi_{matchfn[:-4]}{ext}.csv", index = False)
+    return df
+
 
 
 def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False):
