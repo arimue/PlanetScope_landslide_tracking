@@ -320,7 +320,7 @@ def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
 
     return dat
 
-def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 5, plimup = 95):
+def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 5, plimup = 95, save_remapped_sec = False):
     """
     Apply polynomial fit to the disparity maps from the provided matches.
     
@@ -443,6 +443,14 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
             # ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
             # ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
             
+            if save_remapped_sec: #remapping only makes sense for image pairs with a common reference scene
+                sec = helper.read_file(row.sec)
+                dgx = (xgrid + dgx.reshape(xgrid.shape)).astype(np.float32)
+                dgy = (ygrid + dgy.reshape(xgrid.shape)).astype(np.float32)
+                remap = cv.remap(sec, dgx, dgy, interpolation = cv.INTER_LINEAR)
+                helper.save_file([remap], row.sec, outname = row.sec[:-4]+"_remap.tif")
+                
+                
             helper.save_file([dx,dy], dispfn, dispfn[:-6]+"_polyfit-F.tif")
             out.append(dispfn[:-6]+"_polyfit-F.tif")
     return out

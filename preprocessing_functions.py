@@ -280,6 +280,39 @@ def match_all(path, ext = "_b2.tif", dt_min = None):
     
     return matches
 
+def match_to_one_ref(path, ext = "_b2.tif"):
+ 
+    files = glob.glob(f"{path}/*{ext}")
+    
+    if len(files) < 1: 
+        print("I could not find any matching scenes. Check if the provided path and file extent is correct.")
+        return
+    elif len(files) <2:
+        print("Only one matching scene found. I need at least two for matching.")
+        return
+    
+    ids = [helper.get_scene_id(f) for f in files]
+    file_ext = [files[i].split("/")[-1].replace(ids[i], "") for i in range(len(files))]
+    if len(set(file_ext)) != 1:
+        print(f"Found variable file extents: {set(file_ext)}, but I need these to be equal. Are you working with data from different sensors?")
+        return
+    ids = sorted(ids)
+    matches = []
+
+    matches.append({
+        "ref": ids[0],
+        "sec": list(ids[1:])})
+                
+            
+    matches = pd.DataFrame.from_records(matches).explode("sec").reset_index(drop = True)
+    matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
+    matches.sec = matches.sec.apply(lambda row: os.path.join(path, row+file_ext[0]))
+    
+
+    matches.to_csv(os.path.join(path, "matches_one_ref.csv"), index = False)
+    
+    return matches
+
 
 def orthorectify_L1B(amespath, files, demname, aoi, epsg, pad = 100):
     """

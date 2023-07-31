@@ -2,14 +2,15 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-from helper_functions import get_scene_id, get_date, read_file, save_file, read_transform, get_extent, read_meta
+from helper_functions import get_scene_id, get_date, read_file, save_file, read_transform, get_extent, read_meta, min_max_scaler
 import datetime, os, subprocess
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 import rasterio
 from scipy.stats import circmean, circstd
-
+from skimage import exposure
+import cv2 as cv
 
 def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     """
@@ -436,6 +437,90 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
     save_file([average_vals, std_vals], df.filenames[0], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
     return os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif")
 
+
+def shape_even(array):
+    #ensure image has even dimension, otherwise ffmpeg will complain
+
+    if array.shape[0]%2 != 0:
+        array = array[:-1,:]
+    if array.shape[1]%2 != 0:
+        array = array[:,:-1]
+    return array
+
+def adjust_to_uint16(array):
+    #ffmpeg wants uint16 images, so stretch gray values between 0 and 2**16
     
+    img = array.astype(np.float32)
+    img[img == 0] = np.nan
+    
+    img = min_max_scaler(img)
+    img = img * (2**16-1)
+    img[np.isnan(img)] = 0
+
+    return img.astype(np.uint16)
+
+    
+def make_video(matches, video_name = "out.mp4", ext = "_remap", crop = 0):
+    if type(matches) == str:
+        try:
+            df = pd.read_csv(matches)
+            path,_ = os.path.split(matches)
+   
+        except FileNotFoundError:
+            print("Could not find the provided matchfile.")
+            return
+    elif type(matches) == pd.core.frame.DataFrame:
+        df = matches.copy()
+        path,_ = os.path.split(df.ref.iloc[0])
+    else:
+        print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
+        return
+
+    matches.sec = matches.sec.str.replace(".tif", ext+".tif", regex=True)
+    
+    all_files = [matches.ref.unique(), list(matches.sec)]
+    all_files = [item for sublist in all_files for item in sublist]
+    all_files = sorted(all_files)
+    
+           
+    #match histogrmas to have similar brightness    
+    final_files = []    
+    ref_img = cv.imread(all_files[0], cv.IMREAD_UNCHANGED)
+    
+    if crop > 0:
+        ref_img = ref_img[crop:-crop,crop:-crop]
+    
+    ref_img = adjust_to_uint16(shape_even(ref_img))
+    font = cv.FONT_HERSHEY_DUPLEX
+    date = get_date(get_scene_id(all_files[0])).strftime('%Y-%m-%d')
+    ref_img = cv.putText(ref_img,date,(int(ref_img.shape[0]*0.05), int(ref_img.shape[0]*0.05)),font,2,(2**16,2**16,2**16),3)  
+    
+    cv.imwrite(os.path.join(path, all_files[0][:-4]+"_forGIF.tif"), ref_img)
+    final_files.append(os.path.join(path, all_files[0][:-4]+"_forGIF.tif"))
+    
+    for f in all_files[1:]:
+        img = cv.imread(f, cv.IMREAD_UNCHANGED)
+        img = adjust_to_uint16(shape_even(img))
+        if crop > 0: 
+            img = img[crop:-crop,crop:-crop]
+        matched = exposure.match_histograms(img, ref_img)
+        matched = matched.astype(np.uint16)
+        date = get_date(get_scene_id(f)).strftime('%Y-%m-%d')
+        matched = cv.putText(matched,date,(int(ref_img.shape[0]*0.05), int(ref_img.shape[0]*0.05)),font,2,(2**16,2**16,2**16),3)  
+        cv.imwrite(os.path.join(path, f[:-4]+"_forGIF.tif"), matched)
+        final_files.append(os.path.join(path, f[:-4]+"_forGIF.tif"))
+        
+    with open(os.path.join(path, 'file_list.txt'), 'w') as fl:
+        for line in final_files:
+            fl.write(f"file {line}\n")
+
+    #cannot use option -framerate with concat, see https://superuser.com/questions/1671523/ffmpeg-concat-input-txt-set-frame-rate
+    cmd = f"ffmpeg -f concat -safe 0 -i {os.path.join(path, 'file_list.txt')} -y -vf 'settb=AVTB,setpts=N/2/TB,fps=2' -c:v libx264 -pix_fmt yuv420p {os.path.join(path, video_name)}"
+    subprocess.run(cmd, shell = True)
+
+    cmd = f"ffmpeg -y -i {os.path.join(path, video_name)} -vf 'fps=5,scale=1080:-1:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse' -loop 0 {os.path.join(path, video_name[:-4]+'.gif')}"  
+    subprocess.run(cmd, shell = True)
+    
+    return os.path.join(path, video_name[:-4]+'.gif')
 
     
