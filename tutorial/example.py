@@ -90,7 +90,7 @@ postprocessing.stack_rasters(matches, prefix_ext = "_L1B_polyfit", what = "veloc
 
 #########REMAPPING############################################################################################
 matches = preprocessing.match_to_one_ref("/home/ariane/Documents/PlanetScope/Siguas/L3B/group1")
-dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "L3B", order = 2, demname = cop_dem, save_remapped_sec = True)
+dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "_L3B", order = 2, demname = cop_dem, save_remapped_sec = True)
 
 #########MAKE#GIF#############################################################################################
 postprocessing.make_video(matches, video_name = "group1_remapped.mp4", ext = "_remap", crop = 300)
