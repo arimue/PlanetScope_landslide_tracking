@@ -25,7 +25,7 @@ Install the [Planet SDK for Python](https://github.com/planetlabs/planet-client-
 You will need to authenticate with your Planet account. Open a terminal and enter the following command: `planet auth init`. Then enter your user name and password. For more information refer to the [Planet SDK Documentation](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-4-sign-on-to-your-account).
 
 ### Step 5 (optional):
-Video and GIF generation (timelapse) relies on [ffmpeg](https://www.ffmpeg.org/). On Linux, you can install with the apt package manager:
+Video and GIF generation (timelapse) relies on [ffmpeg](https://www.ffmpeg.org/). On Linux, you can install ffmpeg with the apt package manager:
 ```bash
 sudo apt update
 sudo apt install ffmpeg
