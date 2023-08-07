@@ -33,7 +33,7 @@ import postprocessing_functions as postprocessing
 postprocessing.make_video(matches, video_name = "timelapse_remapped.mp4", ext = "_remap", crop = 300)
 ```
 
-This function will find the reference and remapped secondary images and create a video (timelapse_remapped.mp4) and a GIF (timelapse_remapped.gif) out of these images. Use the crop options to discard pixels along the image margins. If you would like to create a timelapse from the original PlanetScope scenes, set the file extension to "".
+This function will find the reference and remapped secondary images and create a video (timelapse_remapped.mp4) and a GIF (timelapse_remapped.gif) out of these images. Histogram matching is applied to have similar brightness values and the date of acquisition is placed in the upper left corner. Use the crop option to discard pixels along the image margins and zoom in on the scene center. If you would like to create a timelapse from the original PlanetScope scenes, set the file extension to "".
 
 <img src='./figures/remapped_scenes.gif' width='500'>
 Images © 2023 Planet Labs PBC

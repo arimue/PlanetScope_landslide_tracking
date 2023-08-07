@@ -30,7 +30,7 @@ Detailed instructions on how to use the provided tools are stored in the [tutori
 [Tutorial 1](./tutorial/Tutorial1_Data_Search.md): Searching for PlanetScope data\
 [Tutorial 2](./tutorial/Tutorial2_Offset_Tracking_L3B.md): Offset tracking with L3B data\
 [Tutorial 3](./tutorial/Tutorial3_Offset_Tracking_L1B.md): Offset tracking with L1B data\
-[Tutorial 4](./tutorial/Tutorial4_DEM_Building.md): DEM building with PlanetScope L1B data and Ames Stereo Pipeline
+[Tutorial 4](./tutorial/Tutorial4_DEM_Building.md): DEM building with PlanetScope L1B data and Ames Stereo Pipeline\
 [Tutorial 5](./tutorial/Tutorial5_Remapping_and_Video.md): Remapping and timelapse generation
 
 [example.py](./tutorial/example.py): An exemplary Python script
