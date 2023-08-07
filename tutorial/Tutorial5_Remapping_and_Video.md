@@ -25,11 +25,14 @@ dmaps_pfit = opt.apply_polyfit(matches, prefix_ext= "_L3B", order = 2, demname =
 
 ## Step 3: Create video
 
-From the remapped images (or also original PlanetScope scenes) you can create a nice timelapse of the landslide motion. 
-
+From the remapped images (or also original PlanetScope scenes) you can create a nice timelapse of the landslide motion:
 
 ``` python
 import postprocessing_functions as postprocessing
 
 postprocessing.make_video(matches, video_name = "timelapse_remapped.mp4", ext = "_remap", crop = 300)
 ```
+
+This function will find the reference and remapped secondary images and create a video (timelapse_remapped.mp4) and a GIF (timelapse_remapped.gif) out of these images. Use the crop options to discard pixels along the image margins. If you would like to create a timelapse from the original PlanetScope scenes, set the file extension to "".
+
+<img src='./figures/remapped_scenes.gif' width='500'>
