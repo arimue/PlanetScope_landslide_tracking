@@ -20,7 +20,7 @@ Then activate the newly created environment: `conda activate planet`
 ### Step 3:
 Install [Ames Stereo Pipeline](https://stereopipeline.readthedocs.io/en/latest/index.html). Download the latest stable release from [GitHub](https://github.com/NeoGeographyToolkit/StereoPipeline/releases) and unzip it. Detailed instructions can be found in the [ASP Documentation](https://stereopipeline.readthedocs.io/en/latest/installation.html).
 ### Step 4: 
-Install the [Planet SDK for Python](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-2-install-the-planet-sdk-for-python): `pip install planet` or clone the [planet-client-python GitHub repository](https://github.com/planetlabs/planet-client-python) enter it and install locally via `pip install . `
+Install the [Planet SDK for Python](https://github.com/planetlabs/planet-client-python): `pip install planet` (see [Documentation](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-2-install-the-planet-sdk-for-python))
 
 ## Setup
 Authenticate with your Planet account. Open a terminal and enter the following command: `planet auth init`. Then enter your user name and password. For more information refer to the [Planet SDK Documentation](https://planet-sdk-for-python-v2.readthedocs.io/en/latest/get-started/quick-start-guide/#step-4-sign-on-to-your-account).
