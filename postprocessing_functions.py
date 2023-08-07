@@ -181,78 +181,25 @@ def offset_stats_aoi(r, mask, resolution, dt = None, take_velocity = True):
     return mean, std, median, p25, p75
 
 
-def get_std_iqr(matchfile, aoi = None, inverse = False, prefix_ext = "L3B"):
+def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0, prefix_ext = "", max_dt = None, take_velocity = True, invert = False):
     
-    df = pd.read_csv(matchfile)
-    path,_ = os.path.split(matchfile)
+    """
+    Calculate statistics within an Area of Interest (AOI) or at specific pixel coordinates for all disparity maps generated from the provided matches.
 
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
-    df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
-    
-    if os.path.isfile("./temp.tif"):
-        os.remove("./temp.tif")
-        
-    stdsdx = []
-    stdsdy = []
-    iqrsdx = []
-    iqrsdy = []
-    
-    for idx,row in tqdm(df.iterrows(), total=df.shape[0]):
-        fn = os.path.join(row.path, f"disparity_maps/{row.id_ref}_{row.id_sec}{prefix_ext}-F.tif")
-        stddx = np.nan
-        stddy = np.nan
-        if os.path.isfile(fn):
-            
-            dx = read_file(fn,1)
-            dy = read_file(fn,2)
-            dmask = read_file(fn,3)
-            dx[dmask == 0] = np.nan
-            dy[dmask == 0] = np.nan
-            
-            if aoi is not None: 
-                if not os.path.isfile("./temp.tif"):
-                    #only calculating the mask once - all images should have the same extent
-                    #rasterize aoi to find the pixels inside
-                    extent = get_extent(fn)
-                    resolution = read_transform(fn)[0]
-                    #TODO: catch AOI having a different CRS that mapprojected rasters!
-                    cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
-                    if inverse: 
-                        cmd += " -i"
-                    subprocess.run(cmd, shell = True)
-    
-                mask = read_file("./temp.tif")
-                
-                dx[mask == 0] = np.nan
-                dy[mask == 0] = np.nan
-            
-            stddx = np.nanstd(dx)
-            stddy = np.nanstd(dy)
-            iqrx = np.nanpercentile(dx,75)-np.nanpercentile(dx,25)
-            iqry = np.nanpercentile(dy,75)-np.nanpercentile(dy,25)
-        else:
-            print(f"File {fn} not found. Skipping ...")
+    Parameters:
+    matches (str or DataFrame): Path to the matchfile or pandas DataFrame.
+    aoi (str, optional): Path to the GeoJSON file defining the Area of Interest. Defaults to None.
+    xcoord (int, optional): X-coordinate of the pixel for analysis. Used if aoi is not provided. Defaults to None.
+    ycoord (int, optional): Y-coordinate of the pixel for analysis. Used if aoi is not provided. Defaults to None.
+    pad (int, optional): Number of pixels to pad around the selected pixel for analysis. Used if xcoord and ycoord are provided. Defaults to 0.
+    prefix_ext (str, optional): Additional prefix extension for disparity filenames. Defaults to "".
+    max_dt (int, optional): Maximum time difference (in days) between reference and secondary images. Defaults to None.
+    take_velocity (bool, optional): If True, calculate velocity statistics. If False, calculate dx/dy statistics. Defaults to True.
+    invert (bool, optional): If True, invert the AOI mask for statistics calculation. Defaults to False.
 
-        stdsdx.append(stddx)
-        stdsdy.append(stddy)
-        iqrsdx.append(iqrx)
-        iqrsdy.append(iqry)
-        
-    df["std_dx"] = stdsdx
-    df["std_dy"] = stdsdy
-    df["iqr_dx"] = iqrsdx
-    df["iqr_dy"] = iqrsdy
-    
-    df = df.drop(columns = ["path"])
-    df.to_csv(matchfile[:-4]+"_offset_std.csv", index = False)
-    
-    return df
-    
-
-def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 0, prefix_ext = "", max_dt = 10000, take_velocity = True):
+    Returns:
+    DataFrame: Pandas DataFrame containing calculated statistics for each pair of images.
+    """
     
     assert aoi is not None or (xcoord is not None and ycoord is not None), "Please provide either an AOI (vector dataset) or x and y coordinates!"
    
@@ -261,8 +208,23 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
     else:
         print(f"Calculating at pixel value {xcoord} {ycoord} with a padding of {pad} pixels...")
 
-    df = pd.read_csv(matchfile)
-    path,matchfn = os.path.split(matchfile)
+ 
+    if type(matches) == str:
+        try:
+            df = pd.read_csv(matches)
+            path, matchfn = os.path.split(matches)
+            
+        except FileNotFoundError:
+            print("Could not find the provided matchfile.")
+            return
+    elif type(matches) == pd.core.frame.DataFrame:
+        df = matches.copy()
+        path,_ = os.path.split(df.ref.iloc[0])
+        matchfn = "matches.csv"
+    else:
+        print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
+        return
+    
     if os.path.isfile("./temp.tif"):
         os.remove("./temp.tif")
 
@@ -274,7 +236,8 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
 
     df["dt"]  = df.date_sec - df.date_ref
     #introduce upper timelimit
-    df = df[df.dt <= datetime.timedelta(days=max_dt)].reset_index(drop = True)
+    if max_dt is not None: 
+        df = df[df.dt <= datetime.timedelta(days=max_dt)].reset_index(drop = True)
 
     #extract statistics from disparity files
     if take_velocity:
@@ -319,10 +282,14 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
                         aoi = f"{aoi[:-8]}_EPSG{epsg_disp}.geojson"
 
                     #only calculating the mask once - all images should have the same extent
-                    #rasterize aoi to find the pixels inside
+                    #rasterize aoi to find the pixels inside´
                     extent = get_extent(disp)
                     resolution = read_transform(disp)[0]
-                    cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                    
+                    if invert: 
+                        cmd = f"gdal_rasterize -tr {resolution} {resolution} -i -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                    else:
+                        cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
                     subprocess.run(cmd, shell = True)
     
                     mask = read_file("./temp.tif")
@@ -330,16 +297,26 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
                 if take_velocity:
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
-                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
-                    stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_aoi(read_file(disp, 2), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    dx = read_file(disp, 1)
+                    dy = read_file(disp, 2)
+                    good = read_file(disp, 3)
+                    dx[good == 0] = np.nan
+                    dy[good == 0] = np.nan                     
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(dx, mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_aoi(dy, mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
 
             else: #stats in sample region
             
                 if take_velocity:
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
-                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
-                    stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_pixel(read_file(disp, 2), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    dx = read_file(disp, 1)
+                    dy = read_file(disp, 2)
+                    good = read_file(disp, 3)
+                    dx[good == 0] = np.nan
+                    dy[good == 0] = np.nan   
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(dx, xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_pixel(dy, xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
 
         else:
           print(f"Warning! Disparity file {disp} not found.")
@@ -348,6 +325,7 @@ def get_stats_in_aoi(matchfile, aoi = None, xcoord = None, ycoord = None, pad = 
     df = pd.concat([df, statsdf], axis = 1)
     
     df.to_csv(f"{path}/stats_in_aoi_{matchfn[:-4]}{ext}.csv", index = False)
+    print(f"I have written {path}/stats_in_aoi_{matchfn[:-4]}{ext}.csv")
     return df
 
 

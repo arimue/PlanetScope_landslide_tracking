@@ -108,7 +108,14 @@ stack = postprocessing.stack_rasters(matches, prefix_ext = "_L3B_polyfit", what 
 This will return the path to a 2-band GeoTIFF file storing the mean (first band) and standard deviation (second band) of the velocities from all stacked files. 
 
 ### Generate timeline of movement in AOI
+If you are interested in the velocity or displacement estimated from all image pairs inside an area of interest, you can use the function `get_stats_in_aoi()`. This takes a polygon (GeoJSON) or an x and y coordinate of a pixel (and size of a surrounding box) and calculates the mean, std, median and the 25th and 75th percentile of velocity or dx/dy values inside this area. Here is an example:
+``` python
+#Get velocity stats over entire landslide as outlined in landslide_mask.geojson
+aoi = "./tutorial/landslide_mask.geojson"
+stats = postprocessing.get_stats_in_aoi(matches, aoi = aoi, prefix_ext = "L3B", take_velocity=True)
 
-### Calculate stats over full disparity maps
-
+#Get dx/dy stats at the pixel location 200,300 with a padding of 3 pixels. Note dx and dy displacements will be converted to m/yr to make them comparable among image pairs. 
+stats = postprocessing.get_stats_in_aoi(matches, xcoord = 200, ycoord = 300, pad = 3, prefix_ext = "L3B", take_velocity=False)
+```
+Note: if you supplied a GeoJSON, you can also invert your selection and calculate the statistics of all areas outside the provided polygon. To do so, set the invert option to True.
 
