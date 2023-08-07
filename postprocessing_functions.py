@@ -476,6 +476,19 @@ def adjust_to_uint16(array):
 
     
 def make_video(matches, video_name = "out.mp4", ext = "_remap", crop = 0):
+    """
+    Create a video and GIF from a sequence of PlanetScope scenes.
+   
+    Parameters:
+    matches (str or DataFrame): Path to the matchfile or pandas DataFrame.
+    video_name (str, optional): Name of the output video file. Defaults to "out.mp4".
+    ext (str, optional): Extension of the secondary images. Defaults to "_remap".
+    crop (int, optional): Number of pixels to crop from image edges. Defaults to 0.
+    
+    Returns:
+    str: Path to the generated GIF file.
+    """
+ 
     if type(matches) == str:
         try:
             df = pd.read_csv(matches)
@@ -498,7 +511,7 @@ def make_video(matches, video_name = "out.mp4", ext = "_remap", crop = 0):
     all_files = sorted(all_files)
     
            
-    #match histogrmas to have similar brightness    
+    #match histograms to have similar brightness    
     final_files = []    
     ref_img = cv.imread(all_files[0], cv.IMREAD_UNCHANGED)
     

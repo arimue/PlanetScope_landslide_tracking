@@ -37,4 +37,4 @@ Detailed instructions on how to use the provided tools are stored in the [tutori
 
 ## Citation
 
-A. Mueting and B. Bookhagen: Tracking slow-moving landslides with PlanetScope data: new perspectives on the satellite's perspective. (in prep.)
+A. Mueting and B. Bookhagen: Tracking slow-moving landslides with PlanetScope data: new perspectives on the satellite's perspective. (in review)

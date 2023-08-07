@@ -100,9 +100,15 @@ Note that you will have to add "_polyfit" to the prefix extension in order for t
 
 ## Other functionalities
 
+### Stacking
 To stack all obtained velocity measurements (or disparity maps), you can use: 
 ``` python
 stack = postprocessing.stack_rasters(matches, prefix_ext = "_L3B_polyfit", what = "velocity")
 ```
 This will return the path to a 2-band GeoTIFF file storing the mean (first band) and standard deviation (second band) of the velocities from all stacked files. 
+
+### Generate timeline of movement in AOI
+
+### Calculate stats over full disparity maps
+
 
