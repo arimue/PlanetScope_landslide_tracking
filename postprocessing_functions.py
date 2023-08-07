@@ -17,15 +17,15 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     """
     Calculate velocity and direction of displacement between two images.
  
-    Parameters:
-    fn (str): Path to the input raster file.
-    dt (timedelta): Temporal baseline between the two images.
-    fixed_res (float, optional): Fixed raster resolution (default: None, read from metadata).
-    med_shift (bool, optional): Apply median shift to displacements (default: False).
+    Args:
+        fn (str): Path to the input raster file.
+        dt (timedelta): Temporal baseline between the two images.
+        fixed_res (float, optional): Fixed raster resolution (default: None, read from metadata).
+        med_shift (bool, optional): Apply median shift to displacements (default: False).
  
     Returns:
-    v (numpy.ndarray): Velocity in meters per year.
-    direction (numpy.ndarray): Direction of displacement in degrees with respect to north.
+        v (numpy.ndarray): Velocity in meters per year.
+        direction (numpy.ndarray): Direction of displacement in degrees with respect to north.
     """
 
     #NOTE: if the temporal baseline is short, the background noise of typically +-1-2 pixels will result in abnormally high velocities
@@ -91,14 +91,14 @@ def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift 
     """
     Calculate velocity and direction of displacement for multiple image pairs.
     
-    Parameters:
-    matches (str or pandas.DataFrame): Path to the matchfile or a pandas DataFrame with match information.
-    prefix_ext (str, optional): Prefix extension for the output files (default: "").
-    overwrite (bool, optional): Overwrite existing velocity files (default: False).
-    med_shift (bool, optional): Apply median shift to displacements (default: True).
-    
+    Args:
+        matches (str or pandas.DataFrame): Path to the matchfile or a pandas DataFrame with match information.
+        prefix_ext (str, optional): Prefix extension for the output files (default: "").
+        overwrite (bool, optional): Overwrite existing velocity files (default: False).
+        med_shift (bool, optional): Apply median shift to displacements (default: True).
+        
     Returns:
-    out (list): List of paths to the calculated velocity files.
+        out (list): List of paths to the calculated velocity files.
     """
     
     if type(matches) == str:
@@ -186,19 +186,19 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
     """
     Calculate statistics within an Area of Interest (AOI) or at specific pixel coordinates for all disparity maps generated from the provided matches.
 
-    Parameters:
-    matches (str or DataFrame): Path to the matchfile or pandas DataFrame.
-    aoi (str, optional): Path to the GeoJSON file defining the Area of Interest. Defaults to None.
-    xcoord (int, optional): X-coordinate of the pixel for analysis. Used if aoi is not provided. Defaults to None.
-    ycoord (int, optional): Y-coordinate of the pixel for analysis. Used if aoi is not provided. Defaults to None.
-    pad (int, optional): Number of pixels to pad around the selected pixel for analysis. Used if xcoord and ycoord are provided. Defaults to 0.
-    prefix_ext (str, optional): Additional prefix extension for disparity filenames. Defaults to "".
-    max_dt (int, optional): Maximum time difference (in days) between reference and secondary images. Defaults to None.
-    take_velocity (bool, optional): If True, calculate velocity statistics. If False, calculate dx/dy statistics. Defaults to True.
-    invert (bool, optional): If True, invert the AOI mask for statistics calculation. Defaults to False.
+    Args:
+        matches (str or DataFrame): Path to the matchfile or pandas DataFrame.
+        aoi (str, optional): Path to the GeoJSON file defining the Area of Interest. Defaults to None.
+        xcoord (int, optional): X-coordinate of the pixel for analysis. Used if aoi is not provided. Defaults to None.
+        ycoord (int, optional): Y-coordinate of the pixel for analysis. Used if aoi is not provided. Defaults to None.
+        pad (int, optional): Number of pixels to pad around the selected pixel for analysis. Used if xcoord and ycoord are provided. Defaults to 0.
+        prefix_ext (str, optional): Additional prefix extension for disparity filenames. Defaults to "".
+        max_dt (int, optional): Maximum time difference (in days) between reference and secondary images. Defaults to None.
+        take_velocity (bool, optional): If True, calculate velocity statistics. If False, calculate dx/dy statistics. Defaults to True.
+        invert (bool, optional): If True, invert the AOI mask for statistics calculation. Defaults to False.
 
     Returns:
-    DataFrame: Pandas DataFrame containing calculated statistics for each pair of images.
+        DataFrame: Pandas DataFrame containing calculated statistics for each pair of images.
     """
     
     assert aoi is not None or (xcoord is not None and ycoord is not None), "Please provide either an AOI (vector dataset) or x and y coordinates!"
@@ -334,14 +334,14 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
     """
     Stack velocity or disparity rasters from all correlation pairs.
     
-    Parameters:
-    matches (str or pandas.DataFrame): Path to the matchfile or a pandas DataFrame with match information.
-    prefix_ext (str, optional): Prefix extension for the output files (default: "").
-    what (str, optional): Type of rasters to stack [dx/dy/velocity/direction] (default: "velocity").
-    med_shift (bool, optional): Apply median shift to displacements (default: False).
+    Args:
+        matches (str or pandas.DataFrame): Path to the matchfile or a pandas DataFrame with match information.
+        prefix_ext (str, optional): Prefix extension for the output files (default: "").
+        what (str, optional): Type of rasters to stack [dx/dy/velocity/direction] (default: "velocity").
+        med_shift (bool, optional): Apply median shift to displacements (default: False).
     
     Returns:
-    path to averaged raster
+        path to averaged raster
     """
     #TODO: make this more laptop friendly
     if type(matches) == str:
@@ -462,14 +462,14 @@ def make_video(matches, video_name = "out.mp4", ext = "_remap", crop = 0):
     """
     Create a video and GIF from a sequence of PlanetScope scenes.
    
-    Parameters:
-    matches (str or DataFrame): Path to the matchfile or pandas DataFrame.
-    video_name (str, optional): Name of the output video file. Defaults to "out.mp4".
-    ext (str, optional): Extension of the secondary images. Defaults to "_remap".
-    crop (int, optional): Number of pixels to crop from image edges. Defaults to 0.
+    Args:
+        matches (str or DataFrame): Path to the matchfile or pandas DataFrame.
+        video_name (str, optional): Name of the output video file. Defaults to "out.mp4".
+        ext (str, optional): Extension of the secondary images. Defaults to "_remap".
+        crop (int, optional): Number of pixels to crop from image edges. Defaults to 0.
     
     Returns:
-    str: Path to the generated GIF file.
+        str: Path to the generated GIF file.
     """
  
     if type(matches) == str:

@@ -70,9 +70,15 @@ stats = postprocessing.get_stats_in_aoi(matches, aoi = aoi, prefix_ext = "_L3B",
 stats = postprocessing.get_stats_in_aoi(matches, xcoord = 200, ycoord = 300, pad = 3, prefix_ext = "L3B", take_velocity=False)
 
 ###########DEM#GENERATION#####################################################################################
+dem_aoi = "dem_aoi.geojson"
+
+#optional: get a suggestion for scene pairs to use:
+searchfile = search.search_planet_catalog(instrument = instrument, aoi = dem_aoi, cloud_cover_max=0.1, date_start = "2020-03-01", date_stop = "2023-06-30")
+scenes = search.refine_search_and_convert_to_csv(searchfile, aoi = dem_aoi, instrument = instrument, min_overlap = 99)
+pairs = search.suggest_dem_pairs(scenes, min_va = 5, max_dt = 30)
+
 img1 = "./test/20220907_140709_64_24a3_1B_AnalyticMS_b2.tif"
 img2 = "./test/20220912_141056_91_2486_1B_AnalyticMS_b2.tif"
-dem_aoi = "dem_aoi.geojson"
 
 planet_dem = asp.dem_building(amespath, img1, img2, epsg = epsg, aoi = dem_aoi, refdem = cop_dem)
 planet_dem_aligned = opt.disparity_based_DEM_alignment(amespath, img1, img2, planet_dem, cop_dem, epsg = epsg, aoi = aoi, iterations = 1)
