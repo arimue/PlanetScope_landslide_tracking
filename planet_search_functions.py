@@ -256,6 +256,46 @@ def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_d
         print(f"I found {groups.group_id.nunique()} potential correlation groups.")
         return groups
     
+def suggest_dem_pairs(scenes, min_va = 5, max_dt = 30):
+    """
+    Suggest image pairs for DEM generation.
+
+    Args:
+        scenes (DataFrame): DataFrame containing information about the scenes.
+        min_va (float, optional): Minimum view angle for scene inclusion. Defaults to 5.
+        max_dt (int, optional): Maximum time difference (in days) between scenes. Defaults to 30.
+
+    Returns:
+        DataFrame: Pandas DataFrame containing pairs of DEM images and their associated information.
+    """
+    df = scenes.loc[scenes.view_angle >= min_va]
+    df = df.reset_index(drop = True)
+    
+    pairs = []
+    
+    for idx, scene in df.iterrows():
+        comp = df.copy()
+        comp = comp.loc[comp.ids != scene.ids]
+        comp["va_diff"] = abs(comp.true_view_angle - scene.true_view_angle)
+        
+        comp["dt"] =  comp["datetime"] -scene["datetime"]
+        comp = comp.loc[comp.dt > datetime.timedelta(days = 0)] #only compare to newer acquisitions to not have douple pairs
+        comp = comp.loc[comp.dt <= datetime.timedelta(days = max_dt)]
+        
+        if len(comp) > 0:
+            max_vad = comp.va_diff.max()
+            good = comp.loc[comp.va_diff == max_vad]
+
+            pairs.append({
+                "img1": scene.ids,
+                "img2": list(good.ids),
+                "dt": list(good.dt),
+                "true_va_diff": good.va_diff})
+                        
+                    
+    pairs = pd.DataFrame.from_records(pairs).explode(["img2", "dt", "true_va_diff"]).reset_index(drop = True)
+    return pairs
+
 def download_xml_metadata(ids, out_dir = None):
     """
    Download XML metadata files for the provided scene ids.
