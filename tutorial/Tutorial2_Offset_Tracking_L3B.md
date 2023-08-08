@@ -4,7 +4,7 @@ In this tutorial, we will use the downloaded PlanetScope L3B data to retrieve di
 
 ## Step 1: Isolate green band
 
-The correlation with ASP can only be carried out for single-band images. Technically, a pseudo-panchromatic image could be generated from all RGB bands, however, due to inter-band misalignment we recommend to work with a single band only. To isolate bands use the functions collected under `preprocessing_functions.py`:
+The correlation with [Ames Stereo Pipeline](https://stereopipeline.readthedocs.io/en/latest/index.html) (ASP) can only be carried out for single-band images. Technically, a pseudo-panchromatic image could be generated from all RGB bands, however, due to inter-band misalignment, I recommend to work with a single band only. To isolate bands use the functions collected under `preprocessing_functions.py`:
 
 ``` python
 import preprocessing_functions as preprocessing
@@ -28,7 +28,7 @@ You have a couple of options to generate a matchfile (file storing correlation p
 matches = preprocessing.match_all(work_dir, ext = "_b2.tif", dt_min = 180)
 ```
 
-This function collects all files with the extension *_b2.tif in the provided directory and forms correlation pairs. To ensure sufficient displacement for detection, a minimum temporal baseline of 180 days is required between the acquisition of both scenes. The specific value depends on the velocity of the investigated target. It's important to note that the function only matches older scenes with newer acquisitions, preventing any duplicate pairs where both A B and B A are considered. Also, this function does not consider true view angle difference, so you need to ensure that only scenes acquired from a common perspective are in the provided directory.
+This function collects all files with the extension *_b2.tif in the provided directory and forms correlation pairs. To ensure sufficient displacement for detection, a minimum temporal baseline of 180 days is required between the acquisition of both scenes. The specific value depends on the velocity of the investigated target. It's important to note that the function only matches older scenes with newer acquisitions, preventing any duplicate pairs where both AB and BA are considered. Also, this function does not consider true view angle difference, so you need to ensure that only scenes acquired from a common perspective are in the provided directory.
 
 Alternatively, you can also use the pandas DataFrames obtained from searching the Planet catalog (see [Tutorial 1](./Tutorial1_Data_Search.md)) for building a matchfile. This works with or without downloaded data. If you do not check for existing files, the function will provide you with the IDs from potential matches. This information can be useful for determining the approximate number of correlation pairs you would have to process when working with the filtered scenes. Else you will obtain a dataframe (and csv file) storing full filenames of reference and secondary images.
 
@@ -44,7 +44,7 @@ matches = preprocessing.generate_matchfile_from_groups(groups, dt_min = 180)
 matches = preprocessing.generate_matchfile_from_groups(groups, dt_min = 180, path = work_dir, check_existence=True)
 ```
 
-Finally, there is also a function to that finds the true view angle difference between potential matches – in case you want to manually select scene pairs and not automatically form groups as suggested in the [first Tutorial](./Tutorial1_Data_Search.md). All you need to provide is the DataFrame obtained from searching the Planet catalog and the matches you want to evaluate:
+Finally, there is also a function to that finds the true view angle difference between potential matches – in case you want to manually select scene pairs and not automatically form groups as suggested in [Tutorial 1](./Tutorial1_Data_Search.md). All you need to provide is the DataFrame obtained from searching the Planet catalog and the matches you want to evaluate:
 
 ``` python
 ratings = preprocessing.rate_match(scenes, matches) 
@@ -61,14 +61,14 @@ amespath = "/your/path/StereoPipeline-version-date-x86_64-Linux/bin"
 dmaps = asp.correlate_asp_wrapper(amespath, matches, sp_mode = 2, corr_kernel = 35, prefix_ext = "_L3B")
 ```
 
-Running this will take a moment, depending on the number of image pairs and correlation parameters you used. Subpixel mode 2 (Bayes EM weighting) produces best results but takes longest. Use subpixel mode 3 for a trade-off between runtime and accuracy. Subpixel mode 1 (parabola fitting) should only be used for a rough overview - the measurements are not precise. 
+Running this will take a moment, depending on the number of image pairs and correlation parameters you used. Sub-pixel mode 2 (Bayes EM weighting) produces best results but takes longest. Use sub-pixel mode 3 (simple affine correlator) for a trade-off between runtime and accuracy. Sub-pixel mode 1 (parabola fitting) should only be used for a rough overview - the measurements are not precise. 
 When it is done, the function will return a list of filenames of the newly generated disparity maps. You will find them in the same directory as your image data in a subfolder called `disparity_maps`.
 Filtered disparity maps are 3-band GeoTIFF files with the first band representing the displacement in East-West direction (dx), the second band North-South (dy), and the third a good pixel mask. Files are named after the following convention: `[id_img1]_[id_img2][prefix_ext]-F.tif`. The prefix extension will by default be empty, however, I can recommend to give some meaningful name, so you know which data were correlated. Here are the offset-tracking results for an exemplary image pair:
 <img src='./figures/disp_map.png'>
 
 ## Step 4: Apply polynomial fit
 
-As you can see, the disparity map still contains systematic erroneous displacement signals related to stereoscopic effects and ramp errors. To mitigate these, you can apply a polynomial fit. All necessary functions are stored under `optimization_functions.py`. The apply_polyfit() function support fitting of of polynomials (orders 1-3) based on X and Y grid positions: 
+As you can see, the disparity map still contains systematic erroneous displacement signals related to stereoscopic effects and ramp errors. To mitigate these, you can apply a polynomial fit. All necessary functions are stored under `optimization_functions.py`. The `apply_polyfit()` function support fitting of of polynomials (orders 1-3) based on X and Y grid positions: 
 
 ``` python
 import optimization_functions as opt
@@ -105,7 +105,7 @@ To stack all obtained velocity measurements (or disparity maps), you can use:
 ``` python
 stack = postprocessing.stack_rasters(matches, prefix_ext = "_L3B_polyfit", what = "velocity")
 ```
-This will return the path to a 2-band GeoTIFF file storing the mean (first band) and standard deviation (second band) of the velocities from all stacked files. 
+This will return the path to a 2-band GeoTIFF file storing the mean (first band) and standard deviation (second band) of the velocities from all stacked files. YOu can also stack dx, dy or displacement directions.
 
 ### Generate timeline of movement in AOI
 If you are interested in the velocity or displacement estimated from all image pairs inside an area of interest, you can use the function `get_stats_in_aoi()`. This takes a polygon (GeoJSON) or an x and y coordinate of a pixel (and size of a surrounding box) and calculates the mean, std, median and the 25th and 75th percentile of velocity or dx/dy values inside this area. Here is an example:
@@ -117,5 +117,5 @@ stats = postprocessing.get_stats_in_aoi(matches, aoi = aoi, prefix_ext = "L3B", 
 #Get dx/dy stats at the pixel location 200,300 with a padding of 3 pixels. Note dx and dy displacements will be converted to m/yr to make them comparable among image pairs. 
 stats = postprocessing.get_stats_in_aoi(matches, xcoord = 200, ycoord = 300, pad = 3, prefix_ext = "L3B", take_velocity=False)
 ```
-Note: if you supplied a GeoJSON, you can also invert your selection and calculate the statistics of all areas outside the provided polygon. To do so, set the invert=True.
+Note: if you supplied a GeoJSON, you can also invert your selection and calculate the statistics of all areas outside the provided polygon. To do so, set invert=True.
 

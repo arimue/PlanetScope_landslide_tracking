@@ -1,6 +1,6 @@
 # Landslide Tracking with PlanetScope Data 
 
-This repository provides scripts and processing examples for tracking landslides (or other Earth surface processes) based on optical [PlanetScope](https://developers.planet.com/docs/data/planetscope/) data using image-cross correlation. 
+This repository provides scripts and processing examples for tracking landslides (or other Earth surface processes) based on optical [PlanetScope](https://developers.planet.com/docs/data/planetscope/) data using image cross-correlation. 
 
 ## Prerequisites
 ### Linux OS
