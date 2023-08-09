@@ -203,12 +203,16 @@ def clip_mp_projwin(img, ul_lon, ul_lat, xsize, ysize):
     return f"{img[:-4]}_clip.tif"
 
 
-def clip_mp_cutline(img, cutline):
+def clip_mp_cutline(img, cutline, crop_to_cutline = True):
     
     #clip mapprojected images (no transformation to image_coords required)
     
     res = read_transform(img)[0]
-    cmd = f"gdalwarp -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -cutline {cutline} -overwrite -crop_to_cutline -tr {res} {res} {img} {img[:-4]}_clip.tif"
+    if crop_to_cutline: 
+        cmd = f"gdalwarp -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -cutline {cutline} -crop_to_cutline -overwrite -tr {res} {res} {img} {img[:-4]}_clip.tif"
+    else: #if the extent of the cutline is larger than the scene itself, you usually do not want to give the cropped raster the same one
+        cmd = f"gdalwarp -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -cutline {cutline} -overwrite -tr {res} {res} {img} {img[:-4]}_clip.tif"
+
     result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
     if result.stderr != "":
         print(result.stderr)
