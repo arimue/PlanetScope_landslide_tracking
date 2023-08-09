@@ -426,7 +426,8 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
     else: #need to use circmean and circvar for angles
         average_vals = np.rad2deg(circmean(array_list, axis=0, nan_policy="omit"))
         std_vals = np.rad2deg(circstd(array_list, axis=0, nan_policy="omit"))
-    
+   
+    i = 0
     while i < len(df):
         #make sure to find valid reference
         if os.path.isfile(df.filenames[i]):
