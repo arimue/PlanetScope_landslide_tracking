@@ -432,6 +432,7 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
         #make sure to find valid reference
         if os.path.isfile(df.filenames[i]):
             save_file([average_vals, std_vals], df.filenames[i], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
+            break
         else:
             i+=1
     return os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif")
