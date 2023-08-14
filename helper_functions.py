@@ -168,7 +168,6 @@ def warp(img, epsg, res = None):
     
     return outname
 
-
 def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
     
     #gets approximate dimensions for clipping raw data from aoi
@@ -277,3 +276,4 @@ def match_raster_size_and_res(r1, r2):
     if result.stderr != "":
         print(result.stderr)
     return f"{r2[:-4]}_matched_size.tif"
+

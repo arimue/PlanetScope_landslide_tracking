@@ -164,18 +164,18 @@ def disparity_based_DEM_alignment(amespath, img1, img2, demname, refdem, epsg, a
     Perform disparity-based DEM alignment by minimizing the distances between tiepoints found in two images
     when projected into object space using the DEM.
     
-      Parameters:
-    amespath (str): Path to the directory containing the ASP executables.
-    img1 (str): Path to the reference image.
-    img2 (str): Path to the secondary image.
-    demname (str): Path to the DEM that should be aligned.
-    refdem (str): Path to the reference DEM raster file (will only be used for Z component). 
-    epsg (int): EPSG code specifying a projected CRS.
-    aoi (str, optional): Path to the AOI (Area of Interest) file. Defaults to None and assumes that input images are clipped then.
-    iterations (int, optional): Number of iterations to run the process. Defaults to 1.
-    
+    Parameters:
+        amespath (str): Path to the directory containing the ASP executables.
+        img1 (str): Path to the reference image.
+        img2 (str): Path to the secondary image.
+        demname (str): Path to the DEM that should be aligned.
+        refdem (str): Path to the reference DEM raster file (will only be used for Z component). 
+        epsg (int): EPSG code specifying a projected CRS.
+        aoi (str, optional): Path to the AOI (Area of Interest) file. Defaults to None and assumes that input images are clipped then.
+        iterations (int, optional): Number of iterations to run the process. Defaults to 1.
+        
     Returns:
-    Path to aligned DEM
+        Path to aligned DEM
     """
 
     #df = find_tiepoints_SIFT(img1, img2, plot = plot)
@@ -325,19 +325,20 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
     Apply polynomial fit to the disparity maps from the provided matches.
     
     Parameters
-    matches (str or pd.DataFrame): Path to the matchfile or pandas DataFrame containing the match information.
-    prefix_ext (str, optional): Prefix extension for filenames. Defaults to an empty string.
-    order (int, optional): Order of the polynomial fit. Defaults to 2.
-    demname (str, optional): Path to the DEM raster file. If provided, an elevation component will be incoporated in the polyfit.
-    plimlow (float, optional): Lower percentile for outlier removal. Defaults to 5.
-    plimup (float, optional): Upper percentile for outlier removal.. Defaults to 95.
+        matches (str or pd.DataFrame): Path to the matchfile or pandas DataFrame containing the match information.
+        prefix_ext (str, optional): Prefix extension for filenames. Defaults to an empty string.
+        order (int, optional): Order of the polynomial fit. Defaults to 2.
+        demname (str, optional): Path to the DEM raster file. If provided, an elevation component will be incoporated in the polyfit.
+        plimlow (float, optional): Lower percentile for outlier removal. Defaults to 5.
+        plimup (float, optional): Upper percentile for outlier removal.. Defaults to 95.
     
     Returns:
-    list: List of filenames of the disparity maps with the applied polynomial fit.
+        list: List of filenames of the disparity maps with the applied polynomial fit.
     """
     if type(matches) == str:
         try:
             df = pd.read_csv(matches)
+
         except FileNotFoundError:
             print("Could not find the provided matchfile.")
             return
@@ -391,50 +392,50 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
             if order == 1:
                 
                 if demname is None:
-                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
-                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
+                    xcoeffs, xcov = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
+                    ycoeffs, ycov = scipy.optimize.curve_fit(polyXY1, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
                         
-                    dgx = polyXY1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs1)
-                    dgy = polyXY1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs2)
+                    dgx = polyXY1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs)
+                    dgy = polyXY1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *ycoeffs)
                     
                 else:
-                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
-                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
+                    xcoeffs, xcov = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
+                    ycoeffs, ycov = scipy.optimize.curve_fit(polyXYZ1, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
                         
-                    dgx = polyXYZ1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs1)
-                    dgy = polyXYZ1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                    dgx = polyXYZ1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs)
+                    dgy = polyXYZ1((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *ycoeffs)
                 
             elif order == 2:
                 if demname is None:
-                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
-                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
+                    xcoeffs, xcov = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
+                    ycoeffs, ycov = scipy.optimize.curve_fit(polyXY2, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
                                    
-                    dgx = polyXY2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs1)
-                    dgy = polyXY2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs2)
+                    dgx = polyXY2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *xcoeffs)
+                    dgy = polyXY2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten())), *ycoeffs)
                     
                 else:
-                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
-                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
+                    xcoeffs, xcov = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
+                    ycoeffs, ycov = scipy.optimize.curve_fit(polyXYZ2, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
                         
-                    dgx = polyXYZ2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs1)
-                    dgy = polyXYZ2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs2)
-                
+                    dgx = polyXYZ2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs)
+                    dgy = polyXYZ2((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *ycoeffs)
                     
+                                        
             elif order == 3:
                 if demname is None:
 
-                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
-                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
+                    xcoeffs, xcov = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,2])
+                    ycoeffs, ycov = scipy.optimize.curve_fit(polyXY3, xdata = (fit_data[:,0],fit_data[:,1]), ydata = fit_data[:,3])
                         
-                    dgx = polyXY3(helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), *xcoeffs1)
-                    dgy = polyXY3(helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), *xcoeffs2)
+                    dgx = polyXY3(helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), *xcoeffs)
+                    dgy = polyXY3(helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), *ycoeffs)
                     
                 else:
-                    xcoeffs1, xcov1 = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
-                    xcoeffs2, xcov2 = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
+                    xcoeffs, xcov = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,2])
+                    ycoeffs, ycov = scipy.optimize.curve_fit(polyXYZ3, xdata = (fit_data[:,0],fit_data[:,1],fit_data[:,4]), ydata = fit_data[:,3])
                         
-                    dgx = polyXYZ3((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs1)
-                    dgy = polyXYZ3((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs2)
+                    dgx = polyXYZ3((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *xcoeffs)
+                    dgy = polyXYZ3((helper.min_max_scaler(xgrid.flatten()),helper.min_max_scaler(ygrid.flatten()), helper.min_max_scaler(zgrid.flatten())), *ycoeffs)
                 
             dx = dx - dgx.reshape(dx.shape)
             dy = dy - dgy.reshape(dy.shape)
@@ -449,10 +450,10 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
                 dgy = (ygrid + dgy.reshape(xgrid.shape)).astype(np.float32)
                 remap = cv.remap(sec, dgx, dgy, interpolation = cv.INTER_LINEAR)
                 helper.save_file([remap], row.sec, outname = row.sec[:-4]+"_remap.tif")
-                
-                
+            
             helper.save_file([dx,dy], dispfn, dispfn[:-6]+"_polyfit-F.tif")
             out.append(dispfn[:-6]+"_polyfit-F.tif")
+
     return out
             
             
