@@ -41,10 +41,10 @@ Note: you can also use `refine_search_and_convert_to_csv` to filter for a common
 If you plan on using orthorectified L3B data for offset tracking across changing terrain, correlation pairs should be acquired from a common satellite perspective to minimize the bias from orthorectification errors. To get a suggestion for individual correlation based on similar view and satellite azimuth angles, execute the following: 
 
 ``` python
-groups = search.find_common_perspectives(scenes, va_diff_thresh = 0.6, min_group_size = 5, min_dt = 30, searchfile = searchfile)
+groups = search.find_common_perspectives(scenes, va_diff_thresh = 0.3, min_group_size = 5, min_dt = 30, searchfile = searchfile)
 ```
 
-Here, I use the previously obtained DataFrame to form groups that have a minimum size of five PlanetScope acquisitions. As a threshold for true view angle difference (considering view angle and look direction), I choose 0.6°. You may also require a minimal temporal baseline between acquisitions in a single group, which I set to 30 days in this case. If you provide the name of your searchfile (search.geojson) this will be updated to only contail images that were assigned to a group. The group ID of a feature will be written to the attribute table. 
+Here, I use the previously obtained DataFrame to form groups that have a minimum size of five PlanetScope acquisitions. As a threshold for true view angle difference (considering view angle and look direction), I choose ± 0.3°. You may also require a minimal temporal baseline between acquisitions in a single group, which I set to 30 days in this case. If you provide the name of your searchfile (search.geojson) this will be updated to only contail images that were assigned to a group. The group ID of a feature will be written to the attribute table. 
 
 <img src='./figures/search4.jpeg' width='500'>
 
