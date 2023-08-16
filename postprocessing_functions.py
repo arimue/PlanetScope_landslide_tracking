@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import pandas as pd
-from helper_functions import get_scene_id, get_date, read_file, save_file, read_transform, get_extent, read_meta, min_max_scaler, get_epsg
+import helper_functions as helper
 import datetime, os, subprocess
 import numpy as np
 from osgeo import ogr
@@ -16,7 +16,7 @@ import cv2 as cv
 def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     """
     Calculate velocity and direction of displacement between two images.
- 
+ ´
     Args:
         fn (str): Path to the input raster file.
         dt (timedelta): Temporal baseline between the two images.
@@ -116,10 +116,10 @@ def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift 
         print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
         return
     
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
+    df["id_ref"] = df.ref.apply(helper.get_scene_id)
+    df["id_sec"] = df.sec.apply(helper.get_scene_id)
+    df["date_ref"] = df.id_ref.apply(helper.get_date)
+    df["date_sec"] = df.id_sec.apply(helper.get_date)
     
     df["dt"]  = df.date_sec - df.date_ref
     
@@ -131,7 +131,7 @@ def calc_velocity_wrapper(matches, prefix_ext = "", overwrite = False, medShift 
         if os.path.isfile(disp):
             if overwrite or (not os.path.isfile(disp[:-4]+"_velocity.tif")): 
                 v, direction = calc_velocity(disp, row["dt"], medShift=medShift)
-                save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
+                helper.save_file([v,direction], disp, outname = disp[:-4]+"_velocity.tif")
                 out.append(disp[:-4]+"_velocity.tif")
         else:
             print(f"Warning: Disparity file {disp} not found. Skipping velocity calculation...")
@@ -228,10 +228,10 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
     if os.path.isfile("./temp.tif"):
         os.remove("./temp.tif")
 
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date)
-    df["date_sec"] = df.id_sec.apply(get_date)
+    df["id_ref"] = df.ref.apply(helper.get_scene_id)
+    df["id_sec"] = df.sec.apply(helper.get_scene_id)
+    df["date_ref"] = df.id_ref.apply(helper.get_date)
+    df["date_sec"] = df.id_sec.apply(helper.get_date)
     df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
 
     df["dt"]  = df.date_sec - df.date_ref
@@ -273,7 +273,7 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
                     driver = ds = lyr = None
                     
                     #get epsg of disparity raster. assumes that all disp maps will have the same epsg
-                    epsg_disp = get_epsg(disp)
+                    epsg_disp = helper.get_epsg(disp)
                     
                     if int(epsg_disp) != int(epsg_aoi):
                         print("Reprojecting input GeoJSON to match EPSG of disparity maps...")
@@ -283,8 +283,8 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
 
                     #only calculating the mask once - all images should have the same extent
                     #rasterize aoi to find the pixels inside´
-                    extent = get_extent(disp)
-                    resolution = read_transform(disp)[0]
+                    extent = helper.get_extent(disp)
+                    resolution = helper.read_transform(disp)[0]
                     
                     if invert: 
                         cmd = f"gdal_rasterize -tr {resolution} {resolution} -i -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
@@ -292,14 +292,14 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
                         cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
                     subprocess.run(cmd, shell = True)
     
-                    mask = read_file("./temp.tif")
+                    mask = helper.read_file("./temp.tif")
                 
                 if take_velocity:
-                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(helper.read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
-                    dx = read_file(disp, 1)
-                    dy = read_file(disp, 2)
-                    good = read_file(disp, 3)
+                    dx = helper.read_file(disp, 1)
+                    dy = helper.read_file(disp, 2)
+                    good = helper.read_file(disp, 3)
                     dx[good == 0] = np.nan
                     dy[good == 0] = np.nan                     
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(dx, mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
@@ -308,11 +308,11 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
             else: #stats in sample region
             
                 if take_velocity:
-                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
+                    stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(helper.read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
-                    dx = read_file(disp, 1)
-                    dy = read_file(disp, 2)
-                    good = read_file(disp, 3)
+                    dx = helper.read_file(disp, 1)
+                    dy = helper.read_file(disp, 2)
+                    good = helper.read_file(disp, 3)
                     dx[good == 0] = np.nan
                     dy[good == 0] = np.nan   
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(dx, xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
@@ -324,8 +324,10 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
     statsdf = pd.DataFrame(stats, columns = colnames)
     df = pd.concat([df, statsdf], axis = 1)
     
-    df.to_csv(f"{path}/stats_in_aoi_{matchfn[:-4]}{ext}.csv", index = False)
-    print(f"I have written {path}/stats_in_aoi_{matchfn[:-4]}{ext}.csv")
+    _, aoi_name = os.path.split(aoi)
+    aoi_name = aoi_name.split(".")[0]
+    df.to_csv(f"{path}/stats_in_aoi_{matchfn[:-4]}{ext}_{aoi_name}.csv", index = False)
+    print(f"I have written {path}/stats_in_aoi_{matchfn[:-4]}{ext}_{aoi_name}.csv")
     return df
 
 
@@ -361,10 +363,10 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
         return
      
     
-    df["id_ref"] = df.ref.apply(get_scene_id)
-    df["id_sec"] = df.sec.apply(get_scene_id)
-    df["date_ref"] = df.id_ref.apply(get_date) 
-    df["date_sec"] = df.id_sec.apply(get_date)
+    df["id_ref"] = df.ref.apply(helper.get_scene_id)
+    df["id_sec"] = df.sec.apply(helper.get_scene_id)
+    df["date_ref"] = df.id_ref.apply(helper.get_date) 
+    df["date_sec"] = df.id_sec.apply(helper.get_date)
     df["dt"]  = df.date_sec - df.date_ref
     df["path"] =  df["ref"].apply(lambda x: os.path.split(x)[0])
 
@@ -372,33 +374,33 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
     if what == "velocity": 
         df["filenames"] = df.path+"/disparity_maps/"+df.id_ref+"_"+df.id_sec+ prefix_ext+"-F_velocity.tif"
 
-        array_list = [np.ma.masked_invalid(read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
+        array_list = [np.ma.masked_invalid(helper.read_file(x,1)) for x in df.filenames if os.path.isfile(x)]
         
     elif what == "direction": 
         df["filenames"] = df.path+"/disparity_maps/"+df.id_ref+"_"+df.id_sec+ prefix_ext+"-F_velocity.tif"
-        array_list = [np.deg2rad(read_file(x,2)) for x in df.filenames if os.path.isfile(x)]
+        array_list = [np.deg2rad(helper.read_file(x,2)) for x in df.filenames if os.path.isfile(x)]
         
     else: 
         df["filenames"] = df.path+"/disparity_maps/"+df.id_ref+"_"+df.id_sec+ prefix_ext+"-F.tif"
 
         if what == "dx":
         
-            array_list = [read_file(x,1) for x in df.filenames if os.path.isfile(x)]
+            array_list = [helper.read_file(x,1) for x in df.filenames if os.path.isfile(x)]
         
         elif what == "dy":
-            array_list = [read_file(x,2) for x in df.filenames if os.path.isfile(x)]
+            array_list = [helper.read_file(x,2) for x in df.filenames if os.path.isfile(x)]
 
         else: 
             print("Please provide a valid input for what should be stacked [dx/dy/velocity/direction].")
             #return
         
         dt = [df["dt"][i].days for i in range(len(df)) if os.path.isfile(df.filenames[i])]
-        resolution = [read_transform(df.filenames[i])[0] for i in range(len(df)) if os.path.isfile(df.filenames[i])]
+        resolution = [helper.read_transform(df.filenames[i])[0] for i in range(len(df)) if os.path.isfile(df.filenames[i])]
         
         
         #if polyfitting has been applied, there is no more need for masking and disparity maps only have two bands
-        bands = [read_meta(df.filenames[i])["count"] for i in range(len(df)) if os.path.isfile(df.filenames[i])]
-        mask_list = [read_file(df.filenames[i],3) for i in range(len(df)) if (os.path.isfile(df.filenames[i]) and bands[i] == 3)]
+        bands = [helper.read_meta(df.filenames[i])["count"] for i in range(len(df)) if os.path.isfile(df.filenames[i])]
+        mask_list = [helper.read_file(df.filenames[i],3) for i in range(len(df)) if (os.path.isfile(df.filenames[i]) and bands[i] == 3)]
         
         
         for i in range(len(dt)):
@@ -431,7 +433,7 @@ def stack_rasters(matches, prefix_ext = "", what = "velocity", medShift = False)
     while i < len(df):
         #make sure to find valid reference
         if os.path.isfile(df.filenames[i]):
-            save_file([average_vals, std_vals], df.filenames[i], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
+            helper.save_file([average_vals, std_vals], df.filenames[i], os.path.join(path,fn[:-4] + f"_average_{what}{prefix_ext}.tif"))
             break
         else:
             i+=1
@@ -453,7 +455,7 @@ def adjust_to_uint16(array):
     img = array.astype(np.float32)
     img[img == 0] = np.nan
     
-    img = min_max_scaler(img)
+    img = helper.min_max_scaler(img)
     img = img * (2**16-1)
     img[np.isnan(img)] = 0
 
@@ -505,7 +507,7 @@ def make_video(matches, video_name = "out.mp4", ext = "_remap", crop = 0):
     
     ref_img = adjust_to_uint16(shape_even(ref_img))
     font = cv.FONT_HERSHEY_DUPLEX
-    date = get_date(get_scene_id(all_files[0])).strftime('%Y-%m-%d')
+    date = helper.get_date(helper.get_scene_id(all_files[0])).strftime('%Y-%m-%d')
     ref_img = cv.putText(ref_img,date,(int(ref_img.shape[0]*0.05), int(ref_img.shape[0]*0.05)),font,2,(2**16,2**16,2**16),3)  
     
     cv.imwrite(os.path.join(path, all_files[0][:-4]+"_forGIF.tif"), ref_img)
@@ -518,7 +520,7 @@ def make_video(matches, video_name = "out.mp4", ext = "_remap", crop = 0):
             img = img[crop:-crop,crop:-crop]
         matched = exposure.match_histograms(img, ref_img)
         matched = matched.astype(np.uint16)
-        date = get_date(get_scene_id(f)).strftime('%Y-%m-%d')
+        date = helper.get_date(helper.get_scene_id(f)).strftime('%Y-%m-%d')
         matched = cv.putText(matched,date,(int(ref_img.shape[0]*0.05), int(ref_img.shape[0]*0.05)),font,2,(2**16,2**16,2**16),3)  
         cv.imwrite(os.path.join(path, f[:-4]+"_forGIF.tif"), matched)
         final_files.append(os.path.join(path, f[:-4]+"_forGIF.tif"))
