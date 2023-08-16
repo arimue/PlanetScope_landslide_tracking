@@ -66,8 +66,8 @@ plt.savefig("./figures/pfit_2nd_order_elev.png", dpi = 300)
 vels = postprocessing.calc_velocity_wrapper(matches, prefix_ext = "_L3B_polyfit", overwrite = True)
 
 postprocessing.stack_rasters(matches, prefix_ext = "_L3B_polyfit", what = "velocity")
-stats = postprocessing.get_stats_in_aoi(matches, aoi = aoi, prefix_ext = "_L3B", take_velocity=True)
-stats = postprocessing.get_stats_in_aoi(matches, xcoord = 200, ycoord = 300, pad = 3, prefix_ext = "L3B", take_velocity=False)
+stats = postprocessing.get_stats_in_aoi(matches, aoi = aoi, prefix_ext = "_L3B_polyfit", take_velocity=True)
+stats = postprocessing.get_stats_in_aoi(matches, xcoord = 200, ycoord = 300, pad = 3, prefix_ext = "_L3B_polyfit", take_velocity=False)
 
 ###########DEM#GENERATION#####################################################################################
 dem_aoi = "dem_aoi.geojson"
