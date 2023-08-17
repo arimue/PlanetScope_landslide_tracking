@@ -259,9 +259,10 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
 
         disp = os.path.join(row.path, "disparity_maps", f"{row.id_ref}_{row.id_sec}{prefix_ext}-F{ext}.tif")
 
-
         if os.path.isfile(disp):
-
+            extent = helper.get_extent(disp)
+            resolution = helper.read_transform(disp)[0]
+            
             if aoi is not None: #stats in geojson
                 
                 if not os.path.isfile("./temp.tif"):
@@ -283,8 +284,6 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
 
                     #only calculating the mask once - all images should have the same extent
                     #rasterize aoi to find the pixels inside´
-                    extent = helper.get_extent(disp)
-                    resolution = helper.read_transform(disp)[0]
                     
                     if invert: 
                         cmd = f"gdal_rasterize -tr {resolution} {resolution} -i -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
@@ -306,7 +305,6 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
                     stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_aoi(dy, mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
 
             else: #stats in sample region
-            
                 if take_velocity:
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(helper.read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
@@ -324,8 +322,12 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
     statsdf = pd.DataFrame(stats, columns = colnames)
     df = pd.concat([df, statsdf], axis = 1)
     
-    _, aoi_name = os.path.split(aoi)
-    aoi_name = aoi_name.split(".")[0]
+    if aoi is not None: 
+        _, aoi_name = os.path.split(aoi)
+        aoi_name = aoi_name.split(".")[0]
+    else:
+        aoi_name = f"x{xcoord}_y{ycoord}"
+        
     df.to_csv(f"{path}/stats_in_aoi_{matchfn[:-4]}{ext}_{aoi_name}.csv", index = False)
     print(f"I have written {path}/stats_in_aoi_{matchfn[:-4]}{ext}_{aoi_name}.csv")
     return df
