@@ -296,11 +296,16 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
                 if take_velocity:
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(helper.read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
+                    
+                    bands = helper.read_meta(disp)["count"]
                     dx = helper.read_file(disp, 1)
                     dy = helper.read_file(disp, 2)
-                    good = helper.read_file(disp, 3)
-                    dx[good == 0] = np.nan
-                    dy[good == 0] = np.nan                     
+                    
+                    if bands == 3: #if polyfit has not yet been applied, mask
+                        good = helper.read_file(disp, 3)
+                        dx[good == 0] = np.nan
+                        dy[good == 0] = np.nan   
+                        
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(dx, mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                     stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_aoi(dy, mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
 
@@ -308,11 +313,15 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
                 if take_velocity:
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(helper.read_file(disp, 1), xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                 else:
+                    bands = helper.read_meta(disp)["count"]
                     dx = helper.read_file(disp, 1)
                     dy = helper.read_file(disp, 2)
-                    good = helper.read_file(disp, 3)
-                    dx[good == 0] = np.nan
-                    dy[good == 0] = np.nan   
+                    
+                    if bands == 3: #if polyfit has not yet been applied, mask
+                        good = helper.read_file(disp, 3)
+                        dx[good == 0] = np.nan
+                        dy[good == 0] = np.nan  
+                        
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_pixel(dx, xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
                     stats[index,5], stats[index,6], stats[index,7], stats[index,8], stats[index,9]  = offset_stats_pixel(dy, xcoord, ycoord, pad, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
 
