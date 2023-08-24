@@ -384,7 +384,10 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
                 dem_matched = helper.match_raster_size_and_res(dispfn, demname)
                 zgrid = helper.read_file(dem_matched)
                 #make sure to remove nodata (any negative values)
-                zgrid[zgrid < 0] = np.nan            
+                zgrid[zgrid < 0] = np.nan          
+                if len(np.unique(zgrid)) == 1: 
+                    print("Only NoData values found in zgrid. Make sure the reference DEM covers the extent of the disparity maps!")
+                    return
                 fit_data = np.c_[fit_data,helper.min_max_scaler(zgrid.flatten())]
 
             fit_data = fit_data[~np.isnan(fit_data).any(axis=1)]
