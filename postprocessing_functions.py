@@ -34,8 +34,8 @@ def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     # load autoRIFT output
     with rasterio.open(fn) as src:
         # get raster resolution from metadata
+        meta = src.meta
         if fixed_res is None:
-            meta = src.meta
             res = meta["transform"][0]
         else:
             res = fixed_res
