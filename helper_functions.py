@@ -105,6 +105,7 @@ def fixed_val_scaler(x, xmin, xmax):
 
     
 def size_from_aoi(aoi, gsd, epsg):
+    #TODO: upper left corner guessing works, size guessing not ideal yet
     """
     Calculate the size (upper-left corner coordinates, x size, and y size) of a rectangle-shaped AOI.
     
@@ -125,23 +126,15 @@ def size_from_aoi(aoi, gsd, epsg):
     if len(coords) !=4:
         print("AOI has to be a rectangle!")
         return
-    #get corner coords of polygon by splitting in upper and lower half
-    yc = np.unique([c[1] for c in coords])
+    coords.sort(key=lambda x: (x[1], x[0]))
 
-    upper = [c for c in coords if c[1]>=yc[-2]]
-    upper.sort()
-    upperleft = upper[0]
-    upperright = upper[1]
-    
-    lower = [c for c in coords if c[1]<yc[-2]]
-    lower.sort()
-    lowerleft = lower[0]
-    
+    lowerleft, lower_right, upperleft, upper_right = coords
+
     ul_lon = upperleft[0]
     ul_lat = upperleft[1]
 
     #calculate distances (in m) from corner to corner to get size of the aoi
-    sizecoords = [lowerleft, upperleft, upperright]
+    sizecoords = [lowerleft, upperleft, upper_right]
     transformer = Transformer.from_crs(CRS("EPSG:4326"), CRS("EPSG:"+str(epsg)), always_xy=True)  #! need always_xy = True otherwise does strange things
     coords_proj = [transformer.transform(c[0],c[1]) for c in sizecoords]
     
@@ -276,4 +269,3 @@ def match_raster_size_and_res(r1, r2):
     if result.stderr != "":
         print(result.stderr)
     return f"{r2[:-4]}_matched_size.tif"
-
