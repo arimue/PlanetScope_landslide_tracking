@@ -181,44 +181,46 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
     return df
 
 
-def find_common_perspectives_and_illumination(df, va_diff_thresh = 0.5, sun_az_thresh = 5, sun_elev_thresh = 5, min_group_size = 5, searchfile = None):
+def find_common_perspectives_and_illumination(df, va_diff_thresh = 0.3, sun_az_thresh = 5, sun_elev_thresh = 5, min_group_size = 5, searchfile = None):
     """
     Group scenes that fulfill search criteria into groups with a common satellite perspective and illumination conditions.
     """
     
-    df["group_id"] = -1
-
     group_id = 0
+    out = pd.DataFrame()
     for idx, row in df.iterrows():
-        if df.at[idx, "group_id"] == -1:  # if row has not yet been assigned a group
-            mask = (
-                (df["group_id"] == -1) & 
-                (df["true_view_angle"].between(row["true_view_angle"] - va_diff_thresh, row["true_view_angle"] + va_diff_thresh)) &
-                (df["sun_azimuth"].between(row["sun_azimuth"] - sun_az_thresh, row["sun_azimuth"] + sun_az_thresh)) &
-                (df["sun_elevation"].between(row["sun_elevation"] - sun_elev_thresh, row["sun_elevation"] + sun_elev_thresh))
-            )
-
-            df.loc[mask, 'group_id'] = group_id
-            group_id += 1
-            
-    group_counts = df['group_id'].value_counts()
-    df = df[df['group_id'].isin(group_counts[group_counts > 5].index)]
-    df = df.sort_values(by=['group_id', "ids"])
+        mask = (
+            (df["true_view_angle"].between(row["true_view_angle"] - va_diff_thresh, row["true_view_angle"] + va_diff_thresh)) &
+            (df["sun_azimuth"].between(row["sun_azimuth"] - sun_az_thresh, row["sun_azimuth"] + sun_az_thresh)) &
+            (df["sun_elevation"].between(row["sun_elevation"] - sun_elev_thresh, row["sun_elevation"] + sun_elev_thresh))
+        )
     
-    if searchfile is not None:
-        print("Updating searchfile...")
+        selected = df.loc[mask]
+        selected["group_id"] = group_id
+        if len(selected) > (min_group_size - 1): 
+            out = pd.concat([out, selected])
+        group_id += 1
+
         
-        features = [json.loads(line) for line in open(searchfile, "r")]
-        features = [f for f in features if df.ids.str.contains(f["id"]).any()]
+    # group_counts = out['group_id'].value_counts()
+    # out = out[out['group_id'].isin(group_counts[group_counts > min_group_size].index)]
+    out = out.sort_values(by=['group_id', "ids"])
+    
+    # if searchfile is not None:
+    #     print("Updating searchfile...")
         
-        os.remove(searchfile)
+    #     features = [json.loads(line) for line in open(searchfile, "r")]
+    #     features = [f for f in features if df.ids.str.contains(f["id"]).any()]
         
-        with open(searchfile, 'a') as outfile:
-            for f in features:
-                f["properties"]["group_id"] = df.group_id[df.ids == f["id"]].iloc[0]
-                json.dump(f, outfile, indent = None)
-                outfile.write('\n')
-    return df
+    #     os.remove(searchfile)
+        
+    #     with open(searchfile, 'a') as outfile:
+    #         for f in features:
+    #             f["properties"]["group_id"] = df.group_id[df.ids == f["id"]].iloc[0]
+    #             json.dump(f, outfile, indent = None)
+    #             outfile.write('\n')
+    #return df
+    return out
 
 def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_dt = 1, searchfile = None):
     """

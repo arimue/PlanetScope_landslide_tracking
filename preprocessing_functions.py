@@ -210,6 +210,8 @@ def generate_matchfile_from_groups(groups, dt_min = None, path = "./",  ext = "_
             print("It looks like there are no more suitable matches if I apply your minimal temporal baseline. Try to lower it.")
             return
         
+    matches = matches.drop_duplicates(subset=['ref', 'sec'])
+
     if check_existence:
         matches.ref = matches.ref.apply(lambda row: os.path.join(path, row+file_ext[0]))
         matches.sec = matches.sec.apply(lambda row: os.path.join(path, row+file_ext[0]))
@@ -220,7 +222,6 @@ def generate_matchfile_from_groups(groups, dt_min = None, path = "./",  ext = "_
         print("Only returning IDs of potential matches since you have not pointed by to any directory storing PlanetScope data." )
         
     print(f"I have found a total of {len(matches)} correlation pairs.")
-
     return matches
 
 
