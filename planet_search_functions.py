@@ -206,6 +206,12 @@ def find_common_perspectives_and_illumination(df, va_diff_thresh = 0.3, sun_az_t
     # out = out[out['group_id'].isin(group_counts[group_counts > min_group_size].index)]
     out = out.sort_values(by=['group_id', "ids"])
     
+    #drop duplicate groups
+    out['scene_id'] = out.groupby('group_id')['ids'].transform(lambda x: sorted(list(x)))
+    # Drop duplicates based on the aggregated 'scene_id'
+    out = out.drop_duplicates(subset='scene_id').reset_index(drop=True)
+    out = out.drop(columns = "scene_id")
+    
     # if searchfile is not None:
     #     print("Updating searchfile...")
         
