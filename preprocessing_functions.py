@@ -315,6 +315,36 @@ def match_to_one_ref(path, ext = "_b2.tif"):
     return matches
 
 
+def match_common_perspectives_and_illumination(df, va_diff_thresh = 0.3, sun_az_thresh = 5, sun_elev_thresh = 5, min_group_size = 5, dt_min = 1):
+    """
+    Group scenes that fullfill search criteria into groups with a common satellite perspective and illumination conditions.
+    Note that not all scenes within a group can be matched, as the illumination diff is always with regards to the first scene.
+    """
+    
+    out = pd.DataFrame()
+    if min_group_size < 2:
+        print("Resetting min_group_size to 2. Smaller groups are not allowed.")
+    for idx, row in df.iterrows():
+        mask = (
+            (df["true_view_angle"].between(row["true_view_angle"] - va_diff_thresh, row["true_view_angle"] + va_diff_thresh)) &
+            (df["sun_azimuth"].between(row["sun_azimuth"] - sun_az_thresh, row["sun_azimuth"] + sun_az_thresh)) &
+            (df["sun_elevation"].between(row["sun_elevation"] - sun_elev_thresh, row["sun_elevation"] + sun_elev_thresh))
+        )
+    
+        selected = df.loc[mask]
+        
+
+        if len(selected) >= (min_group_size): 
+            other_ids = [i for i in selected.ids if i not in row.ids]
+            match = pd.DataFrame({"ref": [row.ids]*len(other_ids), "sec": other_ids})
+            match["date0"] = match.ref.apply(helper.get_date)
+            match["date1"] = match.sec.apply(helper.get_date)
+            match["dt"] = (match.date1 - match.date0).dt.days
+            match = match.loc[match["dt"] >= dt_min]
+            out = pd.concat([match.loc[:, ["ref", "sec"]], out])
+    out = out.reset_index(drop = True)
+    return out
+
 def orthorectify_L1B(amespath, files, demname, aoi, epsg, pad = 100):
     """
     Orthorectifies provided L1B data based on the given DEM.

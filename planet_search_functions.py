@@ -181,53 +181,6 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
     return df
 
 
-def find_common_perspectives_and_illumination(df, va_diff_thresh = 0.3, sun_az_thresh = 5, sun_elev_thresh = 5, min_group_size = 5, searchfile = None):
-    """
-    Group scenes that fulfill search criteria into groups with a common satellite perspective and illumination conditions.
-    """
-    
-    group_id = 0
-    out = pd.DataFrame()
-    for idx, row in df.iterrows():
-        mask = (
-            (df["true_view_angle"].between(row["true_view_angle"] - va_diff_thresh, row["true_view_angle"] + va_diff_thresh)) &
-            (df["sun_azimuth"].between(row["sun_azimuth"] - sun_az_thresh, row["sun_azimuth"] + sun_az_thresh)) &
-            (df["sun_elevation"].between(row["sun_elevation"] - sun_elev_thresh, row["sun_elevation"] + sun_elev_thresh))
-        )
-    
-        selected = df.loc[mask]
-        selected["group_id"] = group_id
-        if len(selected) > (min_group_size - 1): 
-            out = pd.concat([out, selected])
-        group_id += 1
-
-        
-    # group_counts = out['group_id'].value_counts()
-    # out = out[out['group_id'].isin(group_counts[group_counts > min_group_size].index)]
-    out = out.sort_values(by=['group_id', "ids"])
-    
-    #drop duplicate groups
-    out['scene_id'] = out.groupby('group_id')['ids'].transform(lambda x: sorted(list(x)))
-    # Drop duplicates based on the aggregated 'scene_id'
-    out = out.drop_duplicates(subset='scene_id').reset_index(drop=True)
-    out = out.drop(columns = "scene_id")
-    
-    # if searchfile is not None:
-    #     print("Updating searchfile...")
-        
-    #     features = [json.loads(line) for line in open(searchfile, "r")]
-    #     features = [f for f in features if df.ids.str.contains(f["id"]).any()]
-        
-    #     os.remove(searchfile)
-        
-    #     with open(searchfile, 'a') as outfile:
-    #         for f in features:
-    #             f["properties"]["group_id"] = df.group_id[df.ids == f["id"]].iloc[0]
-    #             json.dump(f, outfile, indent = None)
-    #             outfile.write('\n')
-    #return df
-    return out
-
 def find_common_perspectives(df, va_diff_thresh = 0.5, min_group_size = 5, min_dt = 1, searchfile = None):
     """
     Group scenes that fulfill search criteria into groups with a common satellite perspective.

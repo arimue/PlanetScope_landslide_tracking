@@ -103,6 +103,10 @@ def min_max_scaler(x):
 def fixed_val_scaler(x, xmin, xmax):
     return (x-xmin)/(xmax-xmin)
 
+def percentile_scaler(x, plow = 2, pup = 98):
+    xmin = np.nanpercentile(x, plow)
+    xmax = np.nanpercentile(x, pup)
+    return (x-xmin)/(xmax-xmin)
     
 def size_from_aoi(aoi, gsd, epsg):
     #TODO: upper left corner guessing works, size guessing not ideal yet
