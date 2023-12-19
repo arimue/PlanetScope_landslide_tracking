@@ -27,12 +27,12 @@ def isolate_band(img, band_nr=2):
     if not os.path.exists(band_dir):
         print(f"Generating directory {band_dir}")
         os.makedirs(band_dir)
-    out_img = f"{band_dir}/{img_fn[:-4]}_b{band_nr}.tif"
+    out_img = f"{band_dir}{img_fn[:-4]}_b{band_nr}.tif"
     cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -b {band_nr} {img} {out_img}"
     subprocess.run(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return out_img
 
-def get_single_band(files, out_path = "./", band_nr = 2): #TODO: fetch work_dir globally
+def get_single_band(files, out_path = "./", band_nr = 2, apply_udm_mask = False): #TODO: fetch work_dir globally
     """
     Preprocess a list of input files by isolating a specific band and copying it to the output directory.
     
@@ -48,8 +48,23 @@ def get_single_band(files, out_path = "./", band_nr = 2): #TODO: fetch work_dir 
     out = []
     for file in files:
         out_image = isolate_band(file, band_nr)
-        _,fn = os.path.split(out_image)
-        shutil.copyfile(out_image, os.path.join(out_path,fn))
+        fn = os.path.basename(out_image)
+        if apply_udm_mask:
+            p = os.path.dirname(file)
+            sid = helper.get_scene_id(fn)
+            udm_fn = glob.glob(f"{p}/{sid}*_udm2*.tif")
+            if len(udm_fn) == 0:
+                print(f"Could not find matching udm mask for scene {sid}.")
+            elif len(udm_fn) > 1:
+                print(f"Found too many potential udm files: {udm_fn}")
+            else:
+                r = helper.read_file(out_image)
+                udm = helper.read_file(udm_fn[0]) #first band stores clean pixels
+                r[udm == 0] = -9999
+                helper.save_file([r], out_image, os.path.join(out_path,fn))
+        else:
+            shutil.copyfile(out_image, os.path.join(out_path,fn))
+                
         out.append(os.path.join(out_path,fn))
     print("Isolated bands can now be found in " + out_path)
     

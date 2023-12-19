@@ -71,7 +71,7 @@ def clean_asp_files(path, prefix):
             shutil.rmtree(file)
 
 
-def correlate_asp_wrapper(amespath, matches, prefix_ext = "", sp_mode = 2, corr_kernel = 35, method = "asp_bm", flip = False, overwrite = False):
+def correlate_asp_wrapper(amespath, matches, prefix_ext = "", sp_mode = 2, corr_kernel = 35, method = "asp_bm", flip = False, overwrite = False, nodata_value = None):
     """
      Wrapper function for performing ASP correlation on multiple image pairs based on provided matches.
     
@@ -113,7 +113,7 @@ def correlate_asp_wrapper(amespath, matches, prefix_ext = "", sp_mode = 2, corr_
     
         prefix = row.id_ref + "_" + row.id_sec + prefix_ext
         if (not os.path.isfile(os.path.join(row.path,"disparity_maps",prefix+"-F.tif"))) or overwrite:
-            outpath = correlate_asp(amespath, row.ref, row.sec, prefix = prefix, session = "rpc", sp_mode = sp_mode, method = method, nodata_value = None, corr_kernel = corr_kernel)
+            outpath = correlate_asp(amespath, row.ref, row.sec, prefix = prefix, session = "rpc", sp_mode = sp_mode, method = method, nodata_value = nodata_value, corr_kernel = corr_kernel)
             clean_asp_files(outpath, prefix)
         else: 
             print("Disparity map exists. Skipping correlation...")
