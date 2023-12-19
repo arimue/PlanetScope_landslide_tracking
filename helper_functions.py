@@ -245,7 +245,7 @@ def get_scene_id(fn):
         print("Could not determine processing level of the data. Make sure that either _1B_ or _3B_ is included in the filename of your scene.")
         return
     
-    if fn.split("_").index(f"{level}B") == 4: #PSB.SD case
+    if fn.split("_").index(f"{level}B") == 4: #PSB.SD and PS2.SD case
         scene_id = "_".join(fn.split("_")[0:4])
     elif fn.split("_").index(f"{level}B") == 3: #PS2 case
         scene_id = "_".join(fn.split("_")[0:3])

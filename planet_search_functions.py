@@ -136,7 +136,7 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
     Args:
         searchfile (str): Path to the search file.
         aoi (str): Path to the reference polygon GeoJSON file.
-        instrument (str): Instrument name. Not relevant if not PS2. (default: "PSB.SD"). 
+        instrument (str): Instrument name. Not relevant if not PS2 or PS2.SD (default: "PSB.SD"). 
         orbit (str): Orbit direction. Not relevant if not PS2. ("NE" for Northeast, "NW" for Northwest) (default: "NE").
         min_overlap (int or float): Minimum overlap percentage (default: 99).
         az_angle (int or float): Estimated azimuth angle (azAngle in XML metadata), i.e. flight line angle to north (default: 10) 
@@ -147,7 +147,7 @@ def refine_search_and_convert_to_csv(searchfile, aoi, instrument = "PSB.SD", orb
     """
     gj = [json.loads(line) for line in open(searchfile, "r")]
 
-    if instrument == "PS2":
+    if (instrument == "PS2") or (instrument == "PS2.SD"):
         features = get_orbit(gj, orbit)
     else:
         features = gj
