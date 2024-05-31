@@ -236,6 +236,10 @@ def get_scene_id(fn):
     
     _, fn = os.path.split(fn) 
     
+    #fix mixed paths in windows
+    if "\\" in fn: 
+        fn = fn.split("\\")[-1]
+        
     #determine processing level of scenes
     if "_1B_" in fn:
         level = 1
