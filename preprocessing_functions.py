@@ -263,7 +263,7 @@ def match_all(path, ext = "_b2.tif", dt_min = None):
         return
     
     ids = [helper.get_scene_id(f) for f in files]
-    file_ext = [files[i].split("/")[-1].replace(ids[i], "") for i in range(len(files))]
+    file_ext = [files[i].split("/")[-1].split("\\")[-1].replace(ids[i], "") for i in range(len(files))]
     if len(set(file_ext)) != 1:
         print(f"Found variable file extents: {set(file_ext)}, but I need these to be equal. Are you working with data from different sensors?")
         return
