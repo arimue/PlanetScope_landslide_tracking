@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 
 import glob, subprocess, os, shutil
-from helper_functions import clip_raw, size_from_aoi, get_scene_id
+from helper_functions import clip_raw, size_from_aoi, get_scene_id, wsl_to_windows_path, windows_path_to_wsl
 import pandas as pd
-
+import platform
+        
 
 def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode = 1, method = "asp_bm", nodata_value = None, corr_kernel = 35):
     
@@ -27,6 +28,10 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
 
     """
     
+    img1 = windows_path_to_wsl(img1)
+    img2 = windows_path_to_wsl(img2)
+    amespath = windows_path_to_wsl(amespath)
+    
     folder,_ = os.path.split(img1)
     print(f"Data will be saved under {os.path.join(folder, 'disparity_maps')}")
     
@@ -44,7 +49,17 @@ def correlate_asp(amespath, img1, img2, prefix = "run", session = "rpc", sp_mode
         if nodata_value is not None: 
             cmd = f"{cmd} --nodata-value {nodata_value}"
             
+    #check system because ASP needs to run on an ubuntu subsystem on windows
+    system = platform.system()
+    
+    if system == "Windows":
+        cmd = f"wsl {cmd}"
+        cmd = cmd.replace("\\", "/")
+    
     subprocess.run(cmd, shell = True)
+    
+    if system == "Windows":
+        folder = wsl_to_windows_path(folder)
     
     return os.path.join(folder, 'disparity_maps')
 
@@ -60,8 +75,8 @@ def clean_asp_files(path, prefix):
 
     """
     
-    files = glob.glob(f"{path}/{prefix}-*")
-    disp  = glob.glob(f"{path}/{prefix}-F.tif")
+    files = glob.glob(f"{os.path.join(path, prefix)}-*")
+    disp  = glob.glob(f"{os.path.join(path, prefix)}-F.tif")
     remove = set(files)-set(disp)
     
     for file in remove:
@@ -114,6 +129,7 @@ def correlate_asp_wrapper(amespath, matches, prefix_ext = "", sp_mode = 2, corr_
         prefix = row.id_ref + "_" + row.id_sec + prefix_ext
         if (not os.path.isfile(os.path.join(row.path,"disparity_maps",prefix+"-F.tif"))) or overwrite:
             outpath = correlate_asp(amespath, row.ref, row.sec, prefix = prefix, session = "rpc", sp_mode = sp_mode, method = method, nodata_value = nodata_value, corr_kernel = corr_kernel)
+            print(outpath)
             clean_asp_files(outpath, prefix)
         else: 
             print("Disparity map exists. Skipping correlation...")
@@ -150,6 +166,12 @@ def mapproject(amespath, img, dem, epsg, img_with_rpc = None, ba_prefix = None, 
     if ba_prefix is not None: 
         cmd = f"{cmd} --bundle-adjust-prefix {ba_prefix}"
 
+    #check system because ASP needs to run on an ubuntu subsystem on windows
+    system = platform.system()
+    
+    if system == "Windows":
+        cmd = f"wsl {cmd}"
+    
     subprocess.run(cmd, shell = True)
     return f"{img[:-4]}_{ext}.tif"
     
@@ -179,7 +201,9 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
         id2 = get_scene_id(img2)
 
         prefix = f"{id1}_{id2}"
-        
+   
+    system = platform.system()
+
     print(f"All outputs will be saved with the prefix {prefix}.")
     #TODO: implement buffer for aoi
     if aoi is not None:
@@ -191,24 +215,42 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
         ul_lon, ul_lat, xsize, ysize = size_from_aoi(aoi, epsg = epsg, gsd = 4)
         img2 = clip_raw(img2, ul_lon, ul_lat, xsize, ysize, refdem)
         
+    img1 = windows_path_to_wsl(img1)
+    img2 = windows_path_to_wsl(img2)
+    
     path, fn1 = os.path.split(img1)
     _, fn2 = os.path.split(img2)
         
     if (not (os.path.isfile(f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}.adjust") and os.path.isfile(f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust"))) or overwrite:
         cmd = f"{os.path.join(amespath, 'bundle_adjust')} -t rpc {img1} {img2} -o {path}/bundle_adjust/{prefix}"
+        
+        if system == "Windows":
+            cmd = f"wsl {cmd}"
+            cmd = cmd.replace("\\", "/")
+        
         subprocess.run(cmd, shell = True)
     else:
         print("Using existing bundle adjustment files.")
         
     #currently using stereo instead of parallel_stereo, but can be exchanged
     if (not os.path.isfile(f"{path}/stereo_run1/{prefix}-PC.tif")) or overwrite:
-        cmd = f"{os.path.join(amespath, 'stereo')} {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 2 --threads 0 --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10}" 
-        subprocess.run(cmd, shell = True)
+        cmd = f"{os.path.join(amespath, 'stereo')} {img1} {img2} {path}/stereo_run1/{prefix} -t rpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} --stereo-algorithm asp_bm --subpixel-mode 1 --threads 0 --corr-kernel {corr_kernel} {corr_kernel} --subpixel-kernel {corr_kernel+10} {corr_kernel+10}" 
+        
+        if system == "Windows":
+            cmd = f"wsl {cmd}"
+            cmd = cmd.replace("\\", "/")
+        
+        subprocess.run(cmd, shell = True)    
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run1/{prefix}-PC.tif")
     
     if (not os.path.isfile(f"{path}/point2dem_run1/{prefix}-DEM.tif")) or overwrite:
         cmd = f"{os.path.join(amespath, 'point2dem')} {path}/stereo_run1/{prefix}-PC.tif --tr 90 --t_srs EPSG:{epsg} -o {path}/point2dem_run1/{prefix}" 
+        
+        if system == "Windows":
+            cmd = f"wsl {cmd}"
+            cmd = cmd.replace("\\", "/")
+        
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using existing DEM {path}/point2dem_run1/{prefix}-DEM.tif")
@@ -216,8 +258,20 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
     #need to use the actual mapproject command, not mapproject_single to keep the rpc information 
     
     cmd = f"{os.path.join(amespath, 'mapproject')} {path}/point2dem_run1/{prefix}-DEM.tif {img1} {img1[:-4]}_mp.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr 3 --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+    #check system because ASP needs to run on a subsystem on windows
+    
+    if system == "Windows":
+        cmd = f"wsl {cmd}"
+        cmd = cmd.replace("\\", "/")
+    
     subprocess.run(cmd, shell = True)
+    
     cmd = f"{os.path.join(amespath, 'mapproject')} {path}/point2dem_run1/{prefix}-DEM.tif {img2} {img2[:-4]}_mp.tif -t rpc --threads 0 --t_srs epsg:{epsg} --tr 3 --no-bigtiff --tif-compress Deflate --nodata-value -9999"
+    
+    if system == "Windows":
+        cmd = f"wsl {cmd}"
+        cmd = cmd.replace("\\", "/")
+        
     subprocess.run(cmd, shell = True)
     
     mp1 = img1[:-4]+"_mp.tif"
@@ -225,17 +279,31 @@ def dem_building(amespath, img1, img2, epsg, aoi = None, refdem = None, prefix =
     
     
     #need to copy bundle adjusted files, because the program doesnt find it anymore due to name changes
-    shutil.copyfile(f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}.adjust", f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}_mp.adjust")
-    shutil.copyfile(f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust", f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}_mp.adjust")
+    p1 = f"{path}/bundle_adjust/{prefix}-{fn1[:-4]}.adjust"
+    p2 = f"{path}/bundle_adjust/{prefix}-{fn2[:-4]}.adjust"
+    
+    if system == "Windows":
+        p1 = wsl_to_windows_path(p1)
+        p2 = wsl_to_windows_path(p2)
+
+    shutil.copyfile(p1, f"{p1[:-7]}_mp.adjust")
+    shutil.copyfile(p2, f"{p2[:-7]}_mp.adjust")
     
     if (not os.path.isfile(f"{path}/stereo_run2/{prefix}-PC.tif")) or overwrite:
-        cmd = f"{os.path.join(amespath, 'stereo')} {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 2 --corr-kernel 35 35 --subpixel-kernel 45 45" 
+        cmd = f"{os.path.join(amespath, 'stereo')} {mp1} {mp2} -t rpcmaprpc --datum Earth --bundle-adjust-prefix {path}/bundle_adjust/{prefix} {path}/stereo_run2/{prefix} {path}/point2dem_run1/{prefix}-DEM.tif --stereo-algorithm asp_bm --subpixel-mode 1 --corr-kernel 35 35 --subpixel-kernel 45 45" 
+        if system == "Windows":
+            cmd = f"wsl {cmd}"
+            cmd = cmd.replace("\\", "/")
+        
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using triangulated points from existing file {path}/stereo_run2/{prefix}-PC.tif")
     
     if (not os.path.isfile(f"{path}/point2dem_run2/{prefix}-DEM.tif")) or overwrite:
         cmd = f"{os.path.join(amespath, 'point2dem')} {path}/stereo_run2/{prefix}-PC.tif --tr 30 --t_srs EPSG:{epsg} --dem-hole-fill-len 10 -o {path}/point2dem_run2/{prefix}" 
+        if system == "Windows":
+            cmd = f"wsl {cmd}"
+            cmd = cmd.replace("\\", "/")
         subprocess.run(cmd, shell = True)
     else:
         print(f"Using existing DEM {path}/point2dem_run2/{prefix}-DEM.tif")
@@ -264,6 +332,12 @@ def image_align_asp(amespath, img1, img2, prefix = None):
     else:
         cmd = f"{os.path.join(amespath, 'image_align')} {img1} {img2} -o {img2[:-4]}_aligned.tif --output-prefix {folder}image_align/{prefix} --alignment-transform affine  --inlier-threshold 100" 
 
+    #check system because ASP needs to run on a subsystem on windows
+    system = platform.system()
+    
+    if system == "Windows":
+        cmd = f"wsl {cmd}"
+    
     subprocess.run(cmd, shell = True)
 
 
@@ -288,6 +362,12 @@ def parse_match_asp(amespath, img1, img2, prefix = "run"):
         return
     matchfile = matchfile[0]
     cmd = f"python {os.path.join(amespath, 'parse_match_file.py')} {matchfile} {matchfile[:-6]}.txt"
+    #check system because ASP needs to run on a subsystem on windows
+    system = platform.system()
+    
+    if system == "Windows":
+        cmd = f"wsl {cmd}"
+    
     subprocess.run(cmd, shell = True)
     return f"{matchfile[:-6]}.txt"
 

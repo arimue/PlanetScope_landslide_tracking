@@ -9,6 +9,7 @@ import json
 import numpy as np
 from osgeo import gdal, gdalconst
 from pyproj import Transformer, CRS
+import platform
 
 def read_file(file, b=1):
     with rasterio.open(file) as src:
@@ -31,9 +32,13 @@ def get_epsg(file):
     if meta["crs"].is_epsg_code:
         code = int(meta["crs"]['init'].lstrip('epsg:'))
         return code
-    else:
-        print("No EPSG found. Check your data.")
-        return
+    else: #alternative way to extract EPSG if wkt does not contain init
+        code = CRS.from_wkt(str(meta["crs"])).to_epsg()
+        if type(code) == int:
+            return code
+        
+    print("No EPSG found. Check your data.")
+    return
     
     
 def get_extent(file):
@@ -108,6 +113,24 @@ def percentile_scaler(x, plow = 2, pup = 98):
     xmax = np.nanpercentile(x, pup)
     return (x-xmin)/(xmax-xmin)
     
+
+def windows_path_to_wsl(path):
+    
+    path = path.replace("\\", "/")
+    if path[1] == ":":
+        drive = path[0].lower()
+        path = f"/mnt/{drive}{path[2::]}"
+    return path
+
+def wsl_to_windows_path(path):
+    
+    if path[0:5] == "/mnt/":
+        drive = path[5].upper()
+        path = f"{drive}:{path[6::]}"
+        path = path.replace("/", "\\")
+    return path
+
+
 def size_from_aoi(aoi, gsd, epsg):
     #TODO: upper left corner guessing works, size guessing not ideal yet
     """
@@ -161,7 +184,13 @@ def warp(img, epsg, res = None):
     else: #let gdal guess resolution
         outname = f"{img[:-4]}_epsg{epsg}.tif"
         cmd = f"gdalwarp -t_srs EPSG:{epsg} -co COMPRESS=DEFLATE -r bilinear -overwrite -co ZLEVEL=9 -co PREDICTOR=2 {img} {outname}"
-    subprocess.run(cmd, shell = True)
+
+    result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
+    if result.stderr != "":
+        print(result.stderr)
+        #TODO: fix this!
+        print("Reprojection failed. Is this because PROJ path cannot found? Try to paste the following command in your terminal and then input the reprojected DEM directly:")
+        print(cmd)
     
     return outname
 
@@ -171,7 +200,7 @@ def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
     #check that CRS = epsg:4326 otherwise the RPC projection will result in wrong estimages
     
     epsg = get_epsg(demname)
-    
+            
     if epsg != 4326:
         print("Reprojecting the given DEM to geographic CRS...")
         demname = warp(demname, epsg = 4326)
@@ -182,6 +211,7 @@ def clip_raw(img, ul_lon, ul_lat, xsize, ysize, demname):
     _,pnt = tr.TransformPoint(1, ul_lon, ul_lat)
     ds = tr = None
     cmd = f"gdal_translate -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 -srcwin {pnt[0]} {pnt[1]} {xsize} {ysize} {img} {img[:-4]}_clip.tif"
+
     result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
     if result.stderr != "":
         print(result.stderr)
