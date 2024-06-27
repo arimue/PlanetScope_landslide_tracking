@@ -355,7 +355,9 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
         prefix = f"{id1}_{id2}{prefix_ext}"
         path,_ = os.path.split(row.ref)
         dispfn = os.path.join(path, "disparity_maps", prefix+"-F.tif")
-        if os.path.isfile(dispfn):
+        if not os.path.isfile(dispfn):
+            print(f"File {dispfn} could not be found.")
+        else:
             #print(dispfn)
             if overwrite or (not os.path.isfile(dispfn[:-6]+"_polyfit-F.tif")):
                 dx = helper.read_file(dispfn, b = 1)

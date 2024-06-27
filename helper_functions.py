@@ -302,8 +302,16 @@ def match_raster_size_and_res(r1, r2):
     xmin, ymin, xmax, ymax = get_extent(r1)
     res = read_transform(r1)[0]
     
+    epsg2 = get_epsg(r2)
+    xmin2, ymin2, xmax2, ymax2 = get_extent(r2)
+    res2 = read_transform(r2)[0]
+    
+    if res == res2 and epsg == epsg2 and xmin == xmin2 and ymin == ymin2 and xmax == xmax2 and ymax == ymax2:
+        return r2
+    
     cmd = f"gdalwarp -te {xmin} {ymin} {xmax} {ymax} -t_srs EPSG:{epsg} -tr {res} {res} -r cubic -overwrite -co COMPRESS=DEFLATE -co ZLEVEL=9 -co PREDICTOR=2 {r2} {r2[:-4]}_matched_size.tif"
     result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
     if result.stderr != "":
         print(result.stderr)
     return f"{r2[:-4]}_matched_size.tif"
+
