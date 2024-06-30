@@ -12,6 +12,9 @@ import rasterio
 from scipy.stats import circmean, circstd
 from skimage import exposure
 import cv2 as cv
+import platform
+from pyproj import CRS
+import json
 
 def calc_velocity(fn, dt, fixed_res = None, medShift = False):
     """
@@ -225,8 +228,13 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
         print("Matches must be either a string indicating the path to a matchfile or a pandas DataFrame.")
         return
     
-    if os.path.isfile("./temp.tif"):
-        os.remove("./temp.tif")
+    temp = "./temp.tif"
+    system = platform.system()
+    
+    if system == "Windows":
+        temp = ".\\temp.tif"
+    if os.path.isfile(temp):
+        os.remove(temp)
 
     df["id_ref"] = df.ref.apply(helper.get_scene_id)
     df["id_sec"] = df.sec.apply(helper.get_scene_id)
@@ -265,13 +273,15 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
             
             if aoi is not None: #stats in geojson
                 
-                if not os.path.isfile("./temp.tif"):
+                if not os.path.isfile(temp):
                     #check aoi crs
-                    driver = ogr.GetDriverByName("GeoJSON")
-                    ds = driver.Open(aoi)
-                    lyr = ds.GetLayerByIndex(0)
-                    epsg_aoi = lyr.GetSpatialRef().GetAuthorityCode(None)
-                    driver = ds = lyr = None
+                    
+                    with open(aoi, 'r') as f:
+                        geojson = json.load(f)
+                    
+                    crs_info = geojson.get('crs', {}).get('properties', {}).get('name', None)
+                    crs = CRS.from_string(crs_info)
+                    epsg_aoi = crs.to_epsg()
                     
                     #get epsg of disparity raster. assumes that all disp maps will have the same epsg
                     epsg_disp = helper.get_epsg(disp)
@@ -279,19 +289,21 @@ def get_stats_in_aoi(matches, aoi = None, xcoord = None, ycoord = None, pad = 0,
                     if int(epsg_disp) != int(epsg_aoi):
                         print("Reprojecting input GeoJSON to match EPSG of disparity maps...")
                         cmd = f"ogr2ogr -f 'GeoJSON' {aoi[:-8]}_EPSG{epsg_disp}.geojson {aoi} -s_srs EPSG:{epsg_aoi} -t_srs EPSG:{epsg_disp} "
-                        subprocess.run(cmd, shell = True)
+                        result = subprocess.run(cmd, shell = True,  stdout=subprocess.PIPE, stderr=subprocess.PIPE, text = True)
+                        if result.stderr != "":
+                            print(result.stderr)
                         aoi = f"{aoi[:-8]}_EPSG{epsg_disp}.geojson"
 
                     #only calculating the mask once - all images should have the same extent
                     #rasterize aoi to find the pixels inside´
                     
                     if invert: 
-                        cmd = f"gdal_rasterize -tr {resolution} {resolution} -i -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                        cmd = f"gdal_rasterize -tr {resolution} {resolution} -i -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} {temp}"
                     else:
-                        cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} ./temp.tif"
+                        cmd = f"gdal_rasterize -tr {resolution} {resolution} -burn 1 -a_nodata 0 -ot Int16 -of GTiff -te {' '.join(map(str,extent))} {aoi} {temp}"
                     subprocess.run(cmd, shell = True)
     
-                    mask = helper.read_file("./temp.tif")
+                    mask = helper.read_file(temp)
                 
                 if take_velocity:
                     stats[index,0], stats[index,1], stats[index,2], stats[index,3], stats[index,4]  = offset_stats_aoi(helper.read_file(disp, 1), mask, resolution = resolution, dt = row["dt"].days, take_velocity = take_velocity)
