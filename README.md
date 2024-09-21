@@ -1,5 +1,4 @@
 # Landslide Tracking with PlanetScope Data 
-[![DOI](https://zenodo.org/badge/597154057.svg)](https://zenodo.org/doi/10.5281/zenodo.13770162)
 
 This repository provides scripts and processing examples for tracking landslides (or other Earth surface processes) based on optical [PlanetScope](https://developers.planet.com/docs/data/planetscope/) data using image cross-correlation. 
 
