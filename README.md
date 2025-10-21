@@ -45,4 +45,4 @@ Detailed instructions on how to use the provided tools are stored in the [tutori
 
 ## Citation
 
-Mueting, A. and Bookhagen, B.: Tracking slow-moving landslides with PlanetScope data: new perspectives on the satellite’s perspective, EGUsphere [preprint], https://doi.org/10.5194/egusphere-2023-1698, 2023.
+Mueting, A. and Bookhagen, B.: Tracking slow-moving landslides with PlanetScope data: new perspectives on the satellite's perspective, Earth Surf. Dynam., 12, 1121–1143, https://doi.org/10.5194/esurf-12-1121-2024, 2024. 
