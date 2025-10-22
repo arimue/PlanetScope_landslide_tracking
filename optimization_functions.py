@@ -320,7 +320,8 @@ def percentile_cut(dat, plow = 5, pup = 95, replace = np.nan):
 
     return dat
 
-def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 5, plimup = 95, save_remapped_sec = False, overwrite = True):
+
+def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 5, plimup = 95, mask = None, mask_value = 1, save_remapped_sec = False, overwrite = True):
     """
     Apply polynomial fit to the disparity maps from the provided matches.
     
@@ -330,7 +331,9 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
         order (int, optional): Order of the polynomial fit. Defaults to 2.
         demname (str, optional): Path to the DEM raster file. If provided, an elevation component will be incoporated in the polyfit.
         plimlow (float, optional): Lower percentile for outlier removal. Defaults to 5.
-        plimup (float, optional): Upper percentile for outlier removal.. Defaults to 95.
+        plimup (float, optional): Upper percentile for outlier removal. Defaults to 95.
+        mask (str, optional): Path to mask for excluding pixels from computation. Will exclude all pixels with mask_value from the fit calculation. Default: None
+        mask_value (int, optional): Pixel value of mask to be excluded. Default: 1.
     
     Returns:
         list: List of filenames of the disparity maps with the applied polynomial fit.
@@ -362,18 +365,24 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
             if overwrite or (not os.path.isfile(dispfn[:-6]+"_polyfit-F.tif")):
                 dx = helper.read_file(dispfn, b = 1)
                 dy = helper.read_file(dispfn, b = 2)
-                mask = helper.read_file(dispfn, b = 3)
+                vmask = helper.read_file(dispfn, b = 3)
                 
-                dx[mask == 0] = np.nan
-                dy[mask == 0] = np.nan
+                dx[vmask == 0] = np.nan
+                dy[vmask == 0] = np.nan
                 
-                #TODO: add plotting option
-                # fix,ax = plt.subplots(1,2)
-                # ax[0].imshow(dx, vmin = -3, vmax = 3, cmap = "coolwarm")
-                # ax[1].imshow(dy, vmin = -3, vmax = 3, cmap = "coolwarm")
+                dxc = dx.copy()
+                dyc = dy.copy()
+                if mask:
+                    rmask = helper.read_file(mask)
+                    if rmask.shape != dx.shape:
+                        matched_mask = helper.match_raster_size_and_res(dispfn, mask)
+                        rmask = helper.read_file(matched_mask)
+                        
+                    dxc[rmask == mask_value] = np.nan
+                    dyc[rmask == mask_value] = np.nan
                 
-                dxc = percentile_cut(dx.copy(), plow = plimlow, pup = plimup)
-                dyc = percentile_cut(dy.copy(), plow = plimlow, pup = plimup)
+                dxc = percentile_cut(dxc, plow = plimlow, pup = plimup)
+                dyc = percentile_cut(dyc, plow = plimlow, pup = plimup)
                 
                             
                 xgrid, ygrid = np.meshgrid(np.arange(0,dx.shape[1], 1), np.arange(0, dx.shape[0], 1))
@@ -465,4 +474,3 @@ def apply_polyfit(matches, prefix_ext= "", order = 2, demname = None, plimlow = 
             
             
   
-
