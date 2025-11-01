@@ -53,14 +53,17 @@ def get_extent(file):
     return xmin, ymin, xmax, ymax
     
 
-def save_file(bands, ref, outname, out_dir= ""):
+def save_file(bands, ref, outname, out_dir= "", tiled = False, blocksize = 256):
     #save raster reusing metadata information from a reference file. 
     #get metadata from reference file 
     with rasterio.open(ref) as src:
         meta = src.meta
     meta.update(dtype=rasterio.float32)
-    
     meta.update(count= len(bands))
+    
+    if tiled: 
+        meta.update(tiled=True, blockxsize=256, blockysize=256)
+
 
     with rasterio.open(f"{out_dir}{outname}", 'w', **meta, compress="DEFLATE") as dst:
         
